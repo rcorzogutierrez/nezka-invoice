@@ -25,8 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(argv if argv is not None else sys.argv)
     app.setOrganizationName("Elpidio Jr. Produce Co")
     app.setApplicationName("Nezka Invoice")
-    app.setStyle("Fusion")
-    app.setStyleSheet(theme.STYLESHEET)
+    theme.apply(app)
 
     conn = connect(database_path())
     window = MainWindow(ClientRepository(conn), ProductRepository(conn), EstimateRepository(conn))
