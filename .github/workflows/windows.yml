@@ -1,0 +1,96 @@
+# Builds the Windows executable and publishes it as a GitHub Release asset.
+#   - Every push to main updates the "ultima" release, so
+#     releases/latest/download/NezkaInvoice.exe always has the newest build.
+#   - A tag like v1.0.0 creates a fixed release for that version.
+#   - Pull requests only build and attach the .exe as a workflow artifact.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt pyinstaller pillow
+
+      - name: Run tests
+        run: pytest
+
+      - name: Build executable
+        run: >-
+          pyinstaller --noconfirm --clean --name NezkaInvoice --windowed --onefile -p .
+          --icon nezka_invoice/assets/logo.png
+          --add-data "nezka_invoice/assets;nezka_invoice/assets"
+          nezka_invoice/__main__.py
+
+      # Start the .exe without a screen and check it created the database with
+      # the bundled catalog, which proves the assets made it into the build.
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:NEZKA_DB = "$PWD\smoke.db"
+          $p = Start-Process dist\NezkaInvoice.exe -PassThru
+          Start-Sleep -Seconds 25
+          if ($p.HasExited) { throw "NezkaInvoice.exe exited with code $($p.ExitCode)" }
+          taskkill /IM NezkaInvoice.exe /T /F | Out-Null
+          python -c "import sqlite3; n = sqlite3.connect('smoke.db').execute('SELECT COUNT(*) FROM products').fetchone()[0]; print(n, 'products'); assert n == 55"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NezkaInvoice-windows
+          path: dist/NezkaInvoice.exe
+
+  release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: NezkaInvoice-windows
+
+      - name: Move the "ultima" tag to this commit
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f ultima "$GITHUB_SHA"
+          git push -f origin refs/tags/ultima
+
+      - name: Publish latest build
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ultima
+          name: Nezka Invoice (última versión)
+          body: |
+            Última versión construida desde `main` (commit ${{ github.sha }}).
+            Descarga **NezkaInvoice.exe** y ábrelo con doble clic; no necesita instalación.
+          files: NezkaInvoice.exe
+          make_latest: true
+
+      - name: Publish version
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Nezka Invoice ${{ github.ref_name }}
+          body: |
+            Descarga **NezkaInvoice.exe** y ábrelo con doble clic; no necesita instalación.
+          files: NezkaInvoice.exe
+          make_latest: false
