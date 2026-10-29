@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import QHeaderView, QTableView
+from pathlib import Path
+
+from PySide6.QtCore import QDate, QStandardPaths, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QPageLayout, QPageSize
+from PySide6.QtPrintSupport import QPrinter, QPrintPreviewDialog
+from PySide6.QtWidgets import QFileDialog, QHeaderView, QMessageBox, QPushButton, QTableView
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository
 from nezka_invoice.models import Estimate
+from nezka_invoice.proforma import ProformaRenderer, default_file_name
 from nezka_invoice.ui.estimate_dialog import EstimateDialog, money
 from nezka_invoice.ui.widgets import Column, ListPage, TwoLineDelegate
 
@@ -26,6 +31,9 @@ class EstimatesPage(ListPage):
         self.clients = clients
         self.products = products
         super().__init__(estimates)
+        action = QAction("Imprimir", self, shortcut=QKeySequence.Print, triggered=self.print_selected)
+        action.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+        self.addAction(action)
 
     def columns(self) -> list[Column]:
         return [
@@ -55,3 +63,63 @@ class EstimatesPage(ListPage):
 
     def record_name(self, record: Estimate) -> str:
         return f"{record.number} ({record.client_name})"
+
+    def selection_buttons(self) -> list[QPushButton]:
+        print_button = QPushButton("Imprimir")
+        print_button.setToolTip("Vista previa e impresión en una impresora de esta computadora (Ctrl+P)")
+        print_button.clicked.connect(self.print_selected)
+        pdf_button = QPushButton("Guardar PDF")
+        pdf_button.setToolTip("Guardar el estimado como archivo PDF para enviarlo al cliente")
+        pdf_button.clicked.connect(self.save_pdf_selected)
+        return [print_button, pdf_button]
+
+    # Printing and PDF
+    def renderer(self, estimate: Estimate) -> ProformaRenderer:
+        client = self.clients.get(estimate.client_id) if estimate.client_id else None
+        photos = {}
+        for line in estimate.lines:
+            product = self.products.get(line.product_id) if line.product_id else None
+            if product and product.image:
+                photos[product.id] = product.image
+        return ProformaRenderer(estimate, client, photos)
+
+    def print_selected(self) -> None:
+        estimate = self.selected_record()
+        if estimate is None:
+            return
+        renderer = self.renderer(estimate)
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setDocName(Path(default_file_name(estimate)).stem)
+        printer.setFullPage(True)
+        printer.setPageSize(QPageSize(QPageSize.Letter))
+        printer.setPageOrientation(QPageLayout.Portrait)
+        preview = QPrintPreviewDialog(printer, self)
+        preview.setWindowTitle(f"Imprimir estimado {estimate.number}")
+        preview.resize(980, 860)
+        preview.paintRequested.connect(renderer.render)
+        preview.exec()
+
+    def save_pdf_selected(self) -> None:
+        estimate = self.selected_record()
+        if estimate is None:
+            return
+        folder = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar estimado en PDF", str(Path(folder) / default_file_name(estimate)), "PDF (*.pdf)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        try:
+            self.renderer(estimate).write_pdf(path)
+        except (OSError, RuntimeError) as error:
+            QMessageBox.warning(self, "No se pudo guardar", f"No se pudo guardar el PDF:\n{error}")
+            return
+        self.status_message.emit(f"Estimado {estimate.number} guardado en {path}")
+        box = QMessageBox(QMessageBox.Information, "PDF guardado", f"Se guardó el estimado en:\n{path}", parent=self)
+        open_button = box.addButton("Abrir PDF", QMessageBox.AcceptRole)
+        box.addButton("Cerrar", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_button:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
