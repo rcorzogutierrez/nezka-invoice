@@ -73,6 +73,7 @@ class PdfPreviewDialog(QDialog):
             toolbar.addWidget(save_button)
         if on_print:
             print_button = QPushButton("Imprimir", objectName="Primary")
+            print_button.setToolTip("Elegir impresora y copias en el diálogo de Windows")
             print_button.clicked.connect(on_print)
             toolbar.addWidget(print_button)
         close_button = QPushButton("Cerrar")

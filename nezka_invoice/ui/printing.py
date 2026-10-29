@@ -57,13 +57,18 @@ class EstimatePrinting:
         dialog = PdfPreviewDialog(
             f"Vista previa · {self._title(estimates)}",
             pdf,
-            on_print=lambda: self.print(estimates),
+            on_print=lambda: self.send_to_printer(estimates),
             on_save=lambda: self.save_pdf(estimates),
             parent=self.parent,
         )
         dialog.exec()
 
     def print(self, estimates: list[Estimate]) -> None:
+        """Printing starts from the app's own preview: the Windows 11 print dialog cannot show
+        a preview for desktop apps ("This app doesn't support print preview")."""
+        self.preview(estimates)
+
+    def send_to_printer(self, estimates: list[Estimate]) -> None:
         """The system print dialog (choose printer and copies), then print."""
         if not estimates:
             return
