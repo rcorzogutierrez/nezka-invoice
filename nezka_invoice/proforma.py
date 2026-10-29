@@ -91,6 +91,26 @@ class _Row:
     height: float
 
 
+def render_estimates(device: QPagedPaintDevice, renderers: list["ProformaRenderer"]) -> int:
+    """Draw several proformas one after another (each starting on a new page); return the page count."""
+    painter = QPainter(device)
+    if not painter.isActive():
+        raise RuntimeError("No se pudo empezar a dibujar el documento.")
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
+    scale = min(device.width() / PAGE_W, device.height() / PAGE_H)
+    painter.scale(scale, scale)
+    pages = 0
+    try:
+        for index, renderer in enumerate(renderers):
+            if index:
+                device.newPage()
+            pages += renderer.draw(painter, device)
+    finally:
+        painter.end()
+    return pages
+
+
 class ProformaRenderer:
     """Lays out one estimate over as many pages as it needs."""
 
@@ -105,20 +125,16 @@ class ProformaRenderer:
     # Public API
     def render(self, device: QPagedPaintDevice) -> int:
         """Draw the proforma on the device and return the number of pages."""
-        painter = QPainter(device)
-        if not painter.isActive():
-            raise RuntimeError("No se pudo empezar a dibujar el documento.")
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        scale = min(device.width() / PAGE_W, device.height() / PAGE_H)
-        painter.scale(scale, scale)
+        return render_estimates(device, [self])
+
+    def draw(self, painter: QPainter, device: QPagedPaintDevice) -> int:
+        """Draw on a painter that render_estimates already set up, starting on the current page."""
         self.painter = painter
         self.dpi = device.logicalDpiY()
-        self.page_h = device.height() / scale
+        self.page_h = device.height() / painter.transform().m22()
         try:
             return self._draw_pages(device)
         finally:
-            painter.end()
             self.painter = None
 
     def write_pdf(self, path: str | Path) -> int:

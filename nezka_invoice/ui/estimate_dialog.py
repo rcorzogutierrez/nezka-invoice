@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository
 from nezka_invoice.models import ESTIMATE_STATUSES, Estimate, EstimateLine
+from nezka_invoice.ui.printing import EstimatePrinting
 from nezka_invoice.ui.theme import brand_stripe
 from nezka_invoice.ui.widgets import dialog_header, form_section
 
@@ -49,7 +50,11 @@ def in_cell(widget: QWidget) -> QWidget:
 
 
 class EstimateDialog(QDialog):
-    """Create or edit an estimate (proforma): client, header data and the product lines."""
+    """Create or edit an estimate (proforma): client, header data and the product lines.
+
+    Saving keeps the form open; preview, print and PDF are available once the estimate is saved
+    and have no unsaved changes.
+    """
 
     def __init__(
         self,
@@ -63,6 +68,8 @@ class EstimateDialog(QDialog):
         self.estimates = estimates
         self.estimate = estimate
         self.saved_record: Estimate | None = None
+        self.dirty = False
+        self.printing = EstimatePrinting(clients, products, self)
         self.products = {p.id: p for p in products.list()}
         self.lines: list[EstimateLine] = [EstimateLine(**vars(line)) for line in estimate.lines] if estimate else []
         self.setWindowTitle("Editar estimado" if estimate else "Nuevo estimado")
@@ -173,14 +180,25 @@ class EstimateDialog(QDialog):
         lines_layout.addLayout(picker)
         lines_layout.addWidget(self.table)
 
+        self.preview_button = QPushButton("Vista previa")
+        self.print_button = QPushButton("Imprimir")
+        self.pdf_button = QPushButton("Guardar PDF")
+        self.preview_button.clicked.connect(lambda: self.printing.preview([self.estimate]))
+        self.print_button.clicked.connect(lambda: self.printing.print([self.estimate]))
+        self.pdf_button.clicked.connect(lambda: self.printing.save_pdf([self.estimate]))
+        self.print_hint = QLabel(objectName="PageSubtitle")
         save_button = QPushButton("Guardar estimado", objectName="Primary")
         save_button.setDefault(True)
-        cancel_button = QPushButton("Cancelar")
+        self.close_button = QPushButton("Cancelar")
         save_button.clicked.connect(self.save)
-        cancel_button.clicked.connect(self.reject)
+        self.close_button.clicked.connect(self.reject)
         buttons = QHBoxLayout()
+        for button in (self.preview_button, self.print_button, self.pdf_button):
+            buttons.addWidget(button)
+        buttons.addSpacing(6)
+        buttons.addWidget(self.print_hint)
         buttons.addStretch(1)
-        buttons.addWidget(cancel_button)
+        buttons.addWidget(self.close_button)
         buttons.addWidget(save_button)
 
         body = QVBoxLayout()
@@ -194,12 +212,12 @@ class EstimateDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(brand_stripe())
-        layout.addWidget(
-            dialog_header(
-                f"Estimado {estimate.number}" if estimate else "Nuevo estimado",
-                "Proforma con los productos, cajas y precios cotizados al cliente.",
-            )
+        header = dialog_header(
+            f"Estimado {estimate.number}" if estimate else "Nuevo estimado",
+            "Proforma con los productos, cajas y precios cotizados al cliente.",
         )
+        self.header_title = header.findChild(QLabel, "FormTitle")
+        layout.addWidget(header)
         layout.addLayout(body, 1)
 
         if estimate:
@@ -215,6 +233,34 @@ class EstimateDialog(QDialog):
             self.number.setText(estimates.next_number(today.year()))
             self.client.setCurrentIndex(-1)
         self._rebuild_table()
+
+        self.number.textChanged.connect(self._mark_dirty)
+        self.client.currentIndexChanged.connect(self._mark_dirty)
+        self.date.dateChanged.connect(self._mark_dirty)
+        self.reference.textChanged.connect(self._mark_dirty)
+        self.status.currentIndexChanged.connect(self._mark_dirty)
+        self.notes.textChanged.connect(self._mark_dirty)
+        self.dirty = False
+        self._update_print_buttons()
+
+    # Printing is only offered for what is saved.
+    def _mark_dirty(self, *_args) -> None:
+        self.dirty = True
+        self._update_print_buttons()
+
+    def can_print(self) -> bool:
+        return self.estimate is not None and self.estimate.id is not None and not self.dirty
+
+    def _update_print_buttons(self) -> None:
+        enabled = self.can_print()
+        for button in (self.preview_button, self.print_button, self.pdf_button):
+            button.setEnabled(enabled)
+        if self.estimate is None:
+            self.print_hint.setText("Guarda el estimado para imprimirlo.")
+        elif self.dirty:
+            self.print_hint.setText("Hay cambios sin guardar.")
+        else:
+            self.print_hint.setText("")
 
     # Lines
     def _thumbnail(self, line: EstimateLine) -> QLabel:
@@ -267,10 +313,12 @@ class EstimateDialog(QDialog):
     def _set_boxes(self, line: EstimateLine, value: int) -> None:
         line.boxes = value
         self._refresh_total(line)
+        self._mark_dirty()
 
     def _set_price(self, line: EstimateLine, value: float) -> None:
         line.price_per_box = round(value, 2)
         self._refresh_total(line)
+        self._mark_dirty()
 
     def _refresh_total(self, line: EstimateLine) -> None:
         row = self.lines.index(line)
@@ -290,6 +338,7 @@ class EstimateDialog(QDialog):
         else:
             self.lines.append(EstimateLine.from_product(product, boxes))
         self._rebuild_table()
+        self._mark_dirty()
 
     def add_selected_product(self) -> None:
         index = self.product_picker.findText(self.product_picker.currentText())
@@ -305,6 +354,7 @@ class EstimateDialog(QDialog):
     def remove_line(self, line: EstimateLine) -> None:
         self.lines.remove(line)
         self._rebuild_table()
+        self._mark_dirty()
 
     # Saving
     def form_estimate(self) -> Estimate:
@@ -329,4 +379,18 @@ class EstimateDialog(QDialog):
             QMessageBox.warning(self, "Número duplicado", f"Ya existe un estimado con el número {estimate.number}.")
             return
         self.saved_record = self.estimates.update(estimate) if estimate.id else self.estimates.add(estimate)
-        self.accept()
+        # Stay in the form: from here on it edits the saved estimate and can be printed.
+        self.estimate = self.saved_record
+        self.setWindowTitle("Editar estimado")
+        self.header_title.setText(f"Estimado {self.saved_record.number}")
+        self.close_button.setText("Cerrar")
+        self.dirty = False
+        self._update_print_buttons()
+        self.print_hint.setText("Estimado guardado.")
+
+    def reject(self) -> None:
+        # Once saved, closing the form still tells the list to refresh and select it.
+        if self.saved_record is not None:
+            self.accept()
+        else:
+            super().reject()
