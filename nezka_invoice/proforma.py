@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QMarginsF, QPointF, QRectF, Qt
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QMarginsF, QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -111,6 +111,36 @@ def render_estimates(device: QPagedPaintDevice, renderers: list["ProformaRendere
     return pages
 
 
+def _pdf_writer(target, renderers: list["ProformaRenderer"]) -> QPdfWriter:
+    writer = QPdfWriter(target)
+    if len(renderers) == 1:
+        estimate = renderers[0].estimate
+        writer.setTitle(f"{estimate.number} – {estimate.client_name}".strip(" –"))
+    else:
+        writer.setTitle("Estimados")
+    writer.setCreator(COMPANY_NAME)
+    writer.setResolution(600)
+    writer.setPageLayout(QPageLayout(QPageSize(QPageSize.Letter), QPageLayout.Portrait, QMarginsF(0, 0, 0, 0)))
+    return writer
+
+
+def write_pdf(path: str | Path, renderers: list["ProformaRenderer"]) -> int:
+    """Write the proformas to a PDF file and return the page count."""
+    return render_estimates(_pdf_writer(str(path), renderers), renderers)
+
+
+def pdf_bytes(renderers: list["ProformaRenderer"]) -> bytes:
+    """The proformas as a PDF in memory, for showing them without saving a file."""
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QIODevice.WriteOnly)
+    writer = _pdf_writer(buffer, renderers)
+    render_estimates(writer, renderers)
+    del writer  # flushes the document into the buffer
+    buffer.close()
+    return bytes(data.data())
+
+
 class ProformaRenderer:
     """Lays out one estimate over as many pages as it needs."""
 
@@ -138,14 +168,7 @@ class ProformaRenderer:
             self.painter = None
 
     def write_pdf(self, path: str | Path) -> int:
-        writer = QPdfWriter(str(path))
-        writer.setTitle(f"{self.estimate.number} – {self.estimate.client_name}".strip(" –"))
-        writer.setCreator(COMPANY_NAME)
-        writer.setResolution(600)
-        writer.setPageLayout(
-            QPageLayout(QPageSize(QPageSize.Letter), QPageLayout.Portrait, QMarginsF(0, 0, 0, 0))
-        )
-        return self.render(writer)
+        return write_pdf(path, [self])
 
     # Layout
     def _draw_pages(self, device: QPagedPaintDevice) -> int:

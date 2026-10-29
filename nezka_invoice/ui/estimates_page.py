@@ -66,8 +66,8 @@ class EstimatesPage(ListPage):
     def selection_buttons(self) -> list[QPushButton]:
         buttons = []
         for text, tip, slot in (
-            ("Vista previa", "Ver cómo queda impreso; desde ahí también se puede imprimir", self.preview_marked),
-            ("Imprimir", "Elegir impresora e imprimir los estimados marcados (Ctrl+P)", self.print_marked),
+            ("Vista previa", "Ver el PDF del estimado sin guardarlo; desde ahí también se puede imprimir", self.preview_marked),
+            ("Imprimir", "Ver los estimados marcados e imprimirlos (Ctrl+P)", self.print_marked),
             ("Guardar PDF", "Guardar los estimados marcados como PDF para enviarlos al cliente", self.save_pdf_marked),
         ):
             button = QPushButton(text)

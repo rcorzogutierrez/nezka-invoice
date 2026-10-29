@@ -4,12 +4,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices, QPageLayout, QPageSize
-from PySide6.QtPrintSupport import QPrintDialog, QPrinter, QPrintPreviewDialog
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QWidget
 
 from nezka_invoice.db import ClientRepository, ProductRepository
 from nezka_invoice.models import Estimate
-from nezka_invoice.proforma import ProformaRenderer, default_file_name, render_estimates
+from nezka_invoice.proforma import ProformaRenderer, default_file_name, pdf_bytes, render_estimates
+from nezka_invoice.ui.pdf_preview import PdfPreviewDialog
 
 
 class EstimatePrinting:
@@ -45,17 +46,29 @@ class EstimatePrinting:
         return printer
 
     def preview(self, estimates: list[Estimate]) -> None:
-        """Print preview; its toolbar has the button to send it to a printer."""
+        """The proforma as it will look in the PDF, shown in the app without saving a file."""
         if not estimates:
             return
-        renderers = [self.renderer(e) for e in estimates]
-        dialog = QPrintPreviewDialog(self._printer(estimates), self.parent)
-        dialog.setWindowTitle(f"Vista previa · {self._title(estimates)}")
-        dialog.resize(980, 860)
-        dialog.paintRequested.connect(lambda printer: render_estimates(printer, renderers))
+        try:
+            pdf = pdf_bytes([self.renderer(e) for e in estimates])
+        except RuntimeError as error:
+            QMessageBox.warning(self.parent, "No se pudo generar la vista previa", str(error))
+            return
+        dialog = PdfPreviewDialog(
+            f"Vista previa · {self._title(estimates)}",
+            pdf,
+            on_print=lambda: self.send_to_printer(estimates),
+            on_save=lambda: self.save_pdf(estimates),
+            parent=self.parent,
+        )
         dialog.exec()
 
     def print(self, estimates: list[Estimate]) -> None:
+        """Printing starts from the app's own preview: the Windows 11 print dialog cannot show
+        a preview for desktop apps ("This app doesn't support print preview")."""
+        self.preview(estimates)
+
+    def send_to_printer(self, estimates: list[Estimate]) -> None:
         """The system print dialog (choose printer and copies), then print."""
         if not estimates:
             return
