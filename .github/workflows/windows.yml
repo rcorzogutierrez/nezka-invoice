@@ -3,6 +3,8 @@
 #     releases/latest/download/NezkaInvoice.exe always has the newest build.
 #   - A tag like v1.0.0 creates a fixed release for that version.
 #   - Pull requests only build and attach the .exe as a workflow artifact.
+# The .exe is signed with Azure Artifact Signing once its secrets and variables
+# are set (see README); until then it is published unsigned.
 name: Windows
 
 on:
@@ -15,6 +17,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,6 +39,24 @@ jobs:
           --icon nezka_invoice/assets/logo.png
           --add-data "nezka_invoice/assets;nezka_invoice/assets"
           nezka_invoice/__main__.py
+
+      # Smart App Control blocks unsigned executables, so sign it whenever the
+      # signing account is configured.
+      - name: Sign executable
+        if: env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\dist\NezkaInvoice.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Nezka Invoice
 
       # Start the .exe without a screen and check it created the database with
       # the bundled catalog, which proves the assets made it into the build.

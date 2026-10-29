@@ -45,7 +45,21 @@ Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `
 
 **[Descargar NezkaInvoice.exe](https://github.com/rcorzogutierrez/nezka-invoice/releases/latest/download/NezkaInvoice.exe)**
 
-Es un único archivo: se abre con doble clic y no necesita instalar Python ni nada más. Como el ejecutable no está firmado, la primera vez Windows puede mostrar "Windows protegió su PC"; se abre con *Más información* → *Ejecutar de todas formas*.
+Es un único archivo: se abre con doble clic y no necesita instalar Python ni nada más.
+
+Mientras el ejecutable no esté firmado, Windows puede mostrar "Windows protegió su PC" (se abre con *Más información* → *Ejecutar de todas formas*). En equipos con **Smart App Control** activado, en cambio, se bloquea sin opción de abrirlo, y cada versión nueva puede bloquearse aunque la anterior abriera.
+
+### Firma de código
+
+El workflow firma el `.exe` con [Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/) (antes *Trusted Signing*) en cuanto está configurado:
+
+1. Crear en Azure una cuenta de Artifact Signing, validar la identidad (de la empresa o personal) y crear un *certificate profile* de tipo *Public Trust*.
+2. Registrar una aplicación en Microsoft Entra ID, crearle un secreto de cliente y darle el rol **Artifact Signing Certificate Profile Signer** sobre la cuenta.
+3. En GitHub → *Settings* → *Secrets and variables* → *Actions*:
+   - Secrets: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
+   - Variables: `SIGNING_ENDPOINT` (p. ej. `https://eus.codesigning.azure.net/`), `SIGNING_ACCOUNT` y `SIGNING_PROFILE`.
+
+Sin esos valores el paso de firma se salta y el `.exe` se publica sin firmar.
 
 El `.exe` lo genera GitHub Actions (`.github/workflows/windows.yml`) en una máquina Windows:
 
