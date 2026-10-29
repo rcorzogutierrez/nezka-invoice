@@ -246,6 +246,8 @@ class ListPage(QWidget):
         titles.addWidget(title)
         titles.addWidget(subtitle)
         header.addLayout(titles, 1)
+        for button in self.header_buttons():
+            header.addWidget(button, 0, Qt.AlignBottom)
         header.addWidget(self.new_button, 0, Qt.AlignBottom)
 
         self.stat_cards = [StatCard(label) for label in self.stat_labels]
@@ -333,6 +335,10 @@ class ListPage(QWidget):
 
     def configure_table(self, table: QTableView) -> None:
         pass
+
+    def header_buttons(self) -> list[QPushButton]:
+        """Extra buttons shown next to the "new" button."""
+        return []
 
     def make_dialog(self, record=None) -> QDialog:
         raise NotImplementedError
