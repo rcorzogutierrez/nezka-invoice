@@ -32,10 +32,13 @@ Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la int
 - Cada estimado tiene número (serie `PF-año-NNNN`, se sugiere el siguiente), cliente, fecha, referencia, estado (Borrador, Enviado, Aceptado, Rechazado) y notas.
 - Los productos se agregan buscándolos en el catálogo; las cajas y el precio por caja se editan en la tabla y los totales se recalculan solos. El estimado guarda una copia de los datos del producto, así que no cambia si luego se edita el catálogo.
 - Un cliente con estimados no se puede eliminar (se puede marcar inactivo).
+- **Imprimir** (o `Ctrl+P`) abre una vista previa del estimado seleccionado; desde ahí se elige cualquier impresora instalada en la computadora. **Guardar PDF** genera el archivo (por defecto `Proforma_<número>_<cliente>.pdf` en Documentos) con el mismo formato de la proforma PF-2026-1028: logo, datos del cliente, referencia, número y fecha, tabla con foto, UPC, tamaño, pack, cajas, precio y total, y el resumen con el TOTAL USD.
 
 ![Estimados](docs/estimados.png)
 
 ![Estimado](docs/estimado-form.png)
+
+![Vista previa para imprimir](docs/estimado-imprimir.png)
 
 Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `Supr` eliminar el seleccionado.
 

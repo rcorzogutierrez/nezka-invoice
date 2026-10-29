@@ -264,6 +264,7 @@ class ListPage(QWidget):
         self.show_inactive.setChecked(True)
         self.show_inactive.toggled.connect(self.refresh)
 
+        self.record_buttons = self.selection_buttons()
         self.edit_button = QPushButton("Editar")
         self.delete_button = QPushButton("Eliminar", objectName="Danger")
         self.edit_button.clicked.connect(self.edit_selected)
@@ -301,6 +302,8 @@ class ListPage(QWidget):
         toolbar.addSpacing(8)
         toolbar.addWidget(self.show_inactive)
         toolbar.addStretch(1)
+        for button in self.record_buttons:
+            toolbar.addWidget(button)
         toolbar.addWidget(self.edit_button)
         toolbar.addWidget(self.delete_button)
 
@@ -340,6 +343,10 @@ class ListPage(QWidget):
         """Extra buttons shown next to the "new" button."""
         return []
 
+    def selection_buttons(self) -> list[QPushButton]:
+        """Extra buttons next to "Editar" that act on the selected record."""
+        return []
+
     def make_dialog(self, record=None) -> QDialog:
         raise NotImplementedError
 
@@ -374,6 +381,8 @@ class ListPage(QWidget):
         has_selection = self.selected_record() is not None
         self.edit_button.setEnabled(has_selection)
         self.delete_button.setEnabled(has_selection)
+        for button in self.record_buttons:
+            button.setEnabled(has_selection)
 
     def new_record(self) -> None:
         dialog = self.make_dialog()
