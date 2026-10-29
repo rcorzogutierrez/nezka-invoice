@@ -12,6 +12,9 @@ Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la int
 - **Mantener los existentes**: editar (doble clic o botón *Editar*), marcar como inactivo o eliminar.
 - **Buscar** por nombre, contacto, correo, teléfono, ciudad o Tax ID, y ordenar por cualquier columna.
 - Avisa si el nombre ya existe y valida el formato del correo.
+- **Importar de QuickBooks**: carga de una vez la lista de clientes exportada de QuickBooks (CSV, Excel `.xlsx` o IIF), muestra una vista previa y solo agrega los que no existen (compara por nombre). Lee las columnas de QuickBooks Desktop y Online: nombre, compañía, contacto, teléfonos, correo, dirección *Bill to*, Resale Num (como Tax ID), notas y si está inactivo. Los trabajos (`Cliente:Trabajo`) no se importan.
+  - QuickBooks Desktop: *Customers › Customer Center › Excel › Export Customer List* (guardar como CSV o .xlsx), o *File › Utilities › Export › Lists to IIF Files* marcando *Customer List*.
+  - QuickBooks Online: *Sales › Customers › Export*.
 
 ### Productos
 
