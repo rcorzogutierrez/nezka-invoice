@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication, QFrame, QVBoxLayout, QWidget
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 LOGO = ASSETS / "logo.png"
@@ -110,11 +111,36 @@ QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox {{
     padding: 6px 10px;
     selection-background-color: {BLUE};
 }}
+/* A combo box passes its selection colors on to its drop-down list, so keep them light and legible */
+QComboBox {{
+    selection-background-color: {BLUE_SOFT};
+    selection-color: {BLUE};
+}}
 QComboBox:focus, QDateEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
     border: 1px solid {BLUE};
 }}
 QComboBox::drop-down, QDateEdit::drop-down {{ border: none; width: 24px; }}
 QComboBox::down-arrow, QDateEdit::down-arrow {{ image: url({CHEVRON}); width: 12px; height: 12px; }}
+/* Drop-down lists of combo boxes and the product search popup: light highlight, dark text */
+QComboBox QAbstractItemView, QListView#CompleterPopup {{
+    background: white;
+    color: {INK};
+    border: 1px solid {LINE};
+    outline: 0;
+    padding: 4px;
+    selection-background-color: {BLUE_SOFT};
+    selection-color: {INK};
+}}
+QComboBox QAbstractItemView::item, QListView#CompleterPopup::item {{
+    padding: 6px 10px;
+    min-height: 22px;
+    color: {INK};
+}}
+QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected,
+QListView#CompleterPopup::item:hover, QListView#CompleterPopup::item:selected {{
+    background: {BLUE_SOFT};
+    color: {BLUE};
+}}
 QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ width: 0; border: none; }}
 #CellEditor {{ padding: 3px 6px; border-radius: 6px; }}
 QLineEdit:focus, QPlainTextEdit:focus {{
@@ -208,3 +234,18 @@ def brand_stripe() -> QWidget:
         bar.setFixedHeight(height)
         layout.addWidget(bar)
     return stripe
+
+
+def apply(app: QApplication) -> None:
+    """Fusion style, the brand stylesheet, and a palette for what stylesheets don't reach.
+
+    The drop-down list of a non-editable QComboBox paints its hovered row with the palette's
+    Highlight colors, so those are set to the same light blue the rest of the app uses.
+    """
+    app.setStyle("Fusion")
+    palette = app.palette()
+    for group in (QPalette.Active, QPalette.Inactive):
+        palette.setColor(group, QPalette.Highlight, QColor(BLUE_SOFT))
+        palette.setColor(group, QPalette.HighlightedText, QColor(BLUE))
+    app.setPalette(palette)
+    app.setStyleSheet(STYLESHEET)

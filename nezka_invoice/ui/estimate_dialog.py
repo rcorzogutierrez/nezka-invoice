@@ -130,6 +130,7 @@ class EstimateDialog(QDialog):
         completer = self.product_picker.completer()
         completer.setFilterMode(Qt.MatchContains)
         completer.setCompletionMode(QCompleter.PopupCompletion)
+        completer.popup().setObjectName("CompleterPopup")
         self.product_picker.setCurrentIndex(-1)
         self.product_picker.lineEdit().setPlaceholderText("Escribe para buscar un producto del catálogo…")
         self.add_boxes = QSpinBox()
