@@ -113,3 +113,83 @@ class Product:
     @property
     def label(self) -> str:
         return f"{self.ref}. {self.description}" if self.ref else self.description
+
+
+ESTIMATE_STATUSES = ("Borrador", "Enviado", "Aceptado", "Rechazado")
+
+
+@dataclass
+class EstimateLine:
+    """One product on an estimate. Product data is copied so the estimate keeps what was quoted."""
+
+    description: str
+    boxes: int = 0
+    price_per_box: float = 0.0
+    product_id: int | None = None
+    ref: str = ""
+    upc: str = ""
+    size: str = ""
+    pack: str = ""
+    id: int | None = None
+
+    @property
+    def total(self) -> float:
+        return round(self.boxes * self.price_per_box, 2)
+
+    @classmethod
+    def from_product(cls, product: "Product", boxes: int = 1) -> "EstimateLine":
+        return cls(
+            description=product.description,
+            boxes=boxes,
+            price_per_box=product.price_per_box,
+            product_id=product.id,
+            ref=product.ref,
+            upc=product.upc,
+            size=product.size,
+            pack=product.pack,
+        )
+
+
+@dataclass
+class Estimate:
+    """A quote (proforma) issued to a client."""
+
+    number: str
+    client_id: int | None
+    date: str  # ISO yyyy-mm-dd
+    reference: str = ""
+    status: str = "Borrador"
+    notes: str = ""
+    lines: list[EstimateLine] = field(default_factory=list)
+    id: int | None = None
+    client_name: str = field(default="", compare=False)
+    created_at: str = field(default="", compare=False)
+    updated_at: str = field(default="", compare=False)
+
+    @property
+    def active(self) -> bool:
+        return self.status != "Rechazado"
+
+    @property
+    def total_boxes(self) -> int:
+        return sum(line.boxes for line in self.lines)
+
+    @property
+    def total(self) -> float:
+        return round(sum(line.total for line in self.lines), 2)
+
+    def validate(self) -> list[str]:
+        errors = []
+        if not self.number.strip():
+            errors.append("El número del estimado es obligatorio.")
+        if self.client_id is None:
+            errors.append("Elige un cliente.")
+        if not self.lines:
+            errors.append("Agrega al menos un producto.")
+        if any(line.boxes <= 0 for line in self.lines):
+            errors.append("Cada producto debe tener al menos una caja.")
+        if any(line.price_per_box < 0 for line in self.lines):
+            errors.append("Los precios no pueden ser negativos.")
+        if self.status not in ESTIMATE_STATUSES:
+            errors.append("Estado no válido.")
+        return errors

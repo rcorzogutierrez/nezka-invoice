@@ -1,14 +1,14 @@
 import pytest
 
-from nezka_invoice.db import ProductRepository, ValidationError, load_catalog
+from nezka_invoice.db import ProductRepository, ValidationError, connect, load_catalog
 from nezka_invoice.models import Product
 
 
 @pytest.fixture
 def repo():
-    repo = ProductRepository(":memory:", seed=False)
-    yield repo
-    repo.close()
+    conn = connect(":memory:", seed=False)
+    yield ProductRepository(conn)
+    conn.close()
 
 
 def test_catalog_matches_proforma():
@@ -29,15 +29,16 @@ def test_catalog_matches_proforma():
 
 def test_new_database_is_seeded_once(tmp_path):
     path = tmp_path / "nezka.db"
-    repo = ProductRepository(path)
+    conn = connect(path)
+    repo = ProductRepository(conn)
     assert len(repo.list()) == 55
-    first = repo.list()[0]
-    repo.delete(first.id)
-    repo.close()
+    # Product 06 is not on the seeded estimate, so it can be deleted.
+    repo.delete(next(p for p in repo.list() if p.ref == "06").id)
+    conn.close()
 
-    reopened = ProductRepository(path)
-    assert len(reopened.list()) == 54
-    reopened.close()
+    conn = connect(path)
+    assert len(ProductRepository(conn).list()) == 54
+    conn.close()
 
 
 def test_add_update_delete(repo):

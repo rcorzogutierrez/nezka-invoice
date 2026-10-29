@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any, Callable, NamedTuple
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRectF, QSortFilterProxyModel, Qt, Signal
@@ -130,16 +131,23 @@ class TwoLineDelegate(QStyledItemDelegate):
         painter.restore()
 
 
+PILL_COLORS = {
+    "Activo": (theme.GREEN, theme.GREEN_SOFT),
+    "Aceptado": (theme.GREEN, theme.GREEN_SOFT),
+    "Enviado": (theme.BLUE, theme.BLUE_SOFT),
+    "Rechazado": (theme.RED, "#fdecec"),
+}
+
+
 class StatusPillDelegate(QStyledItemDelegate):
-    """Draws the active/inactive state as a colored pill."""
+    """Draws a status (Activo, Inactivo, Enviado...) as a colored pill."""
 
     def paint(self, painter: QPainter, option, index):
         self.initStyleOption(option, index)
         draw_item_background(option, painter)
 
-        record = index.data(Qt.UserRole)
         text = index.data(Qt.DisplayRole)
-        fg, bg = (theme.GREEN, theme.GREEN_SOFT) if record.active else (theme.MUTED, "#eceef3")
+        fg, bg = PILL_COLORS.get(text, (theme.MUTED, "#eceef3"))
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
         font = QFont(option.font)
@@ -219,6 +227,7 @@ class ListPage(QWidget):
     search_placeholder = ""
     noun = ("registro", "registros")
     stat_labels = ("TOTAL", "ACTIVOS", "INACTIVOS")
+    inactive_label = "Mostrar inactivos"
     row_height = 54
 
     def __init__(self, repo):
@@ -249,7 +258,7 @@ class ListPage(QWidget):
         self.search.setPlaceholderText(self.search_placeholder)
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self.refresh)
-        self.show_inactive = QCheckBox("Mostrar inactivos")
+        self.show_inactive = QCheckBox(self.inactive_label)
         self.show_inactive.setChecked(True)
         self.show_inactive.toggled.connect(self.refresh)
 
@@ -387,5 +396,14 @@ class ListPage(QWidget):
             QMessageBox.No,
         )
         if answer == QMessageBox.Yes:
-            self.repo.delete(record.id)
+            try:
+                self.repo.delete(record.id)
+            except sqlite3.IntegrityError:
+                QMessageBox.information(
+                    self,
+                    "No se puede eliminar",
+                    f"«{self.record_name(record)}» tiene estimados guardados, por eso no se puede eliminar.\n\n"
+                    "Puedes editarlo y marcarlo como inactivo.",
+                )
+                return
             self.refresh()

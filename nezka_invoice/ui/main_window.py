@@ -14,12 +14,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from nezka_invoice.db import ClientRepository, ProductRepository
+from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository
 from nezka_invoice.ui import theme
 from nezka_invoice.ui.clients_page import ClientsPage
+from nezka_invoice.ui.estimates_page import EstimatesPage
 from nezka_invoice.ui.products_page import ProductsPage
 
-UPCOMING = ("Proformas", "Facturas")
+UPCOMING = ("Facturas",)
 
 
 class Sidebar(QFrame):
@@ -59,11 +60,11 @@ class Sidebar(QFrame):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, clients: ClientRepository, products: ProductRepository):
+    def __init__(self, clients: ClientRepository, products: ProductRepository, estimates: EstimateRepository):
         super().__init__()
         self.resize(1360, 800)
 
-        self.pages = [ClientsPage(clients), ProductsPage(products)]
+        self.pages = [ClientsPage(clients), ProductsPage(products), EstimatesPage(estimates, clients, products)]
         self.stack = QStackedWidget()
         for page in self.pages:
             self.stack.addWidget(page)

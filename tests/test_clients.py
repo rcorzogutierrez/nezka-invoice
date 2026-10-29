@@ -1,14 +1,14 @@
 import pytest
 
-from nezka_invoice.db import ClientRepository, ValidationError
+from nezka_invoice.db import ClientRepository, ValidationError, connect
 from nezka_invoice.models import Client
 
 
 @pytest.fixture
 def repo():
-    repo = ClientRepository(":memory:")
-    yield repo
-    repo.close()
+    conn = connect(":memory:", seed=False)
+    yield ClientRepository(conn)
+    conn.close()
 
 
 def tree_logistics(**overrides):
