@@ -12,7 +12,7 @@ from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import QApplication
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository, connect
-from nezka_invoice.proforma import ProformaRenderer, default_file_name, long_date
+from nezka_invoice.proforma import ProformaRenderer, default_file_name, long_date, render_estimates
 
 
 @pytest.fixture(scope="module")
@@ -83,3 +83,15 @@ def test_renders_on_a_printer(app, seeded, tmp_path):
 def test_long_date():
     assert long_date("2026-10-28") == "October 28, 2026"
     assert long_date("") == ""
+
+
+def test_several_estimates_in_one_document(app, seeded, tmp_path):
+    _estimate, renderer = tree_logistics_renderer(seeded)
+    printer = QPrinter(QPrinter.HighResolution)
+    printer.setOutputFormat(QPrinter.PdfFormat)
+    printer.setOutputFileName(str(tmp_path / "two.pdf"))
+    printer.setFullPage(True)
+    assert render_estimates(printer, [renderer, renderer]) == 4
+    pages, _images = pdf_text(tmp_path / "two.pdf")
+    assert len(pages) == 4
+    assert "Page 1" in pages[2] and "CUSTOMER" in pages[2]

@@ -42,15 +42,39 @@ class Column(NamedTuple):
 class RecordTableModel(QAbstractTableModel):
     """Table model over a list of dataclass records (clients, products) that have an `active` flag."""
 
-    def __init__(self, columns: list[Column]):
+    def __init__(self, columns: list[Column], checkable: bool = False):
         super().__init__()
         self.columns = columns
         self.records: list = []
+        # With checkable, the first column has a check box per record; the ids of the marked ones.
+        self.checkable = checkable
+        self.checked: set[int] = set()
 
     def set_records(self, records: list) -> None:
         self.beginResetModel()
         self.records = records
+        self.checked &= {r.id for r in records}
         self.endResetModel()
+
+    def checked_records(self) -> list:
+        return [r for r in self.records if r.id in self.checked]
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if self.checkable and index.column() == 0:
+            flags |= Qt.ItemIsUserCheckable
+        return flags
+
+    def setData(self, index, value, role=Qt.EditRole):
+        if not (self.checkable and index.isValid() and index.column() == 0 and role == Qt.CheckStateRole):
+            return False
+        record_id = self.records[index.row()].id
+        if Qt.CheckState(value) == Qt.Checked:
+            self.checked.add(record_id)
+        else:
+            self.checked.discard(record_id)
+        self.dataChanged.emit(index, index, [Qt.CheckStateRole])
+        return True
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.records)
@@ -76,6 +100,8 @@ class RecordTableModel(QAbstractTableModel):
                 return QColor(INACTIVE_INK)
             if not column.emphasized:
                 return QColor(theme.MUTED)
+        if role == Qt.CheckStateRole and self.checkable and index.column() == 0:
+            return Qt.Checked if record.id in self.checked else Qt.Unchecked
         if role == Qt.UserRole:
             return record
         return None
@@ -229,6 +255,8 @@ class ListPage(QWidget):
     stat_labels = ("TOTAL", "ACTIVOS", "INACTIVOS")
     inactive_label = "Mostrar inactivos"
     row_height = 54
+    # Show a check box per row to mark several records for the selection buttons.
+    checkable = False
 
     def __init__(self, repo):
         super().__init__()
@@ -270,7 +298,8 @@ class ListPage(QWidget):
         self.edit_button.clicked.connect(self.edit_selected)
         self.delete_button.clicked.connect(self.delete_selected)
 
-        self.model = RecordTableModel(self.columns())
+        self.model = RecordTableModel(self.columns(), checkable=self.checkable)
+        self.model.dataChanged.connect(self._update_buttons)
         self.proxy = QSortFilterProxyModel()
         self.proxy.setSourceModel(self.model)
         self.proxy.setSortRole(SORT_ROLE)
@@ -344,7 +373,7 @@ class ListPage(QWidget):
         return []
 
     def selection_buttons(self) -> list[QPushButton]:
-        """Extra buttons next to "Editar" that act on the selected record."""
+        """Extra buttons next to "Editar" that act on the marked records (see marked_records)."""
         return []
 
     def make_dialog(self, record=None) -> QDialog:
@@ -377,20 +406,41 @@ class ListPage(QWidget):
         rows = self.table.selectionModel().selectedRows()
         return rows[0].data(Qt.UserRole) if rows else None
 
+    def marked_records(self) -> list:
+        """The checked records in table order, or else the selected row."""
+        if self.model.checked:
+            checked = []
+            for row in range(self.proxy.rowCount()):
+                record = self.proxy.index(row, 0).data(Qt.UserRole)
+                if record.id in self.model.checked:
+                    checked.append(record)
+            return checked
+        record = self.selected_record()
+        return [record] if record is not None else []
+
+    def _target_record(self):
+        """The one record that Editar and Eliminar act on."""
+        marked = self.marked_records()
+        return marked[0] if len(marked) == 1 else None
+
     def _update_buttons(self, *_args) -> None:
-        has_selection = self.selected_record() is not None
-        self.edit_button.setEnabled(has_selection)
-        self.delete_button.setEnabled(has_selection)
+        marked = len(self.marked_records())
+        self.edit_button.setEnabled(marked == 1)
+        self.delete_button.setEnabled(marked == 1)
         for button in self.record_buttons:
-            button.setEnabled(has_selection)
+            button.setEnabled(marked > 0)
+        if self.checkable and self.model.checked:
+            singular, plural = self.noun
+            count = len(self.model.checked)
+            self.status_message.emit(f"{count} {singular if count == 1 else plural} marcado{'' if count == 1 else 's'}")
 
     def new_record(self) -> None:
         dialog = self.make_dialog()
         if dialog.exec():
             self.refresh(select_id=dialog.saved_record.id)
 
-    def edit_selected(self, *_args) -> None:
-        record = self.selected_record()
+    def edit_selected(self, index=None) -> None:
+        record = index.data(Qt.UserRole) if isinstance(index, QModelIndex) and index.isValid() else self._target_record()
         if record is None:
             return
         dialog = self.make_dialog(record)
@@ -398,7 +448,7 @@ class ListPage(QWidget):
             self.refresh(select_id=record.id)
 
     def delete_selected(self) -> None:
-        record = self.selected_record()
+        record = self._target_record()
         if record is None:
             return
         singular = self.noun[0]
