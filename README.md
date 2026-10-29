@@ -38,6 +38,18 @@ Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `
 
 ![Formulario de cliente](docs/cliente-form.png)
 
+## Descargar para Windows
+
+**[Descargar NezkaInvoice.exe](https://github.com/rcorzogutierrez/nezka-invoice/releases/latest/download/NezkaInvoice.exe)**
+
+Es un único archivo: se abre con doble clic y no necesita instalar Python ni nada más. Como el ejecutable no está firmado, la primera vez Windows puede mostrar "Windows protegió su PC"; se abre con *Más información* → *Ejecutar de todas formas*.
+
+El `.exe` lo genera GitHub Actions (`.github/workflows/windows.yml`) en una máquina Windows:
+
+- Cada cambio que entra en `main` actualiza la versión **ultima** en [Releases](https://github.com/rcorzogutierrez/nezka-invoice/releases), que es la que descarga el enlace de arriba.
+- Para entregar una versión fija, se crea una etiqueta (`git tag v1.0.0 && git push origin v1.0.0`) y queda su propia release con el `.exe`.
+- En cada pull request el `.exe` queda como *artifact* del workflow para probarlo antes de unirlo.
+
 ## Instalar y ejecutar
 
 Requiere Python 3.10 o superior.
@@ -61,11 +73,13 @@ En un archivo `nezka.db` dentro de la carpeta de datos del usuario:
 
 Clientes, productos, fotos y estimados van en ese único archivo, así que para respaldar basta copiarlo. La variable de entorno `NEZKA_DB` permite usar otra ruta.
 
-## Generar un ejecutable para el cliente
+## Generar el ejecutable a mano
+
+Normalmente no hace falta (ver *Descargar para Windows*), pero se puede generar localmente:
 
 ```bash
-pip install pyinstaller
-pyinstaller --name "Nezka Invoice" --windowed --onefile -p . \
+pip install pyinstaller pillow
+pyinstaller --name NezkaInvoice --windowed --onefile -p . --icon nezka_invoice/assets/logo.png \
   --add-data "nezka_invoice/assets:nezka_invoice/assets" nezka_invoice/__main__.py
 ```
 
