@@ -18,4 +18,4 @@ packages = ["nezka_invoice", "nezka_invoice.ui"]
 pythonpath = ["."]
 
 [tool.setuptools.package-data]
-nezka_invoice = ["assets/*.png", "assets/products/*"]
+nezka_invoice = ["assets/*.png", "assets/*.svg", "assets/products/*"]

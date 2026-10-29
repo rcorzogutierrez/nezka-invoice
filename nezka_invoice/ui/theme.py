@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QFrame, QVBoxLayout, QWidget
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 LOGO = ASSETS / "logo.png"
+CHEVRON = (ASSETS / "chevron-down.svg").as_posix()
 
 BLUE = "#1e3f9e"
 BLUE_DARK = "#162f78"
@@ -102,6 +103,20 @@ QLineEdit, QPlainTextEdit {{
     padding: 7px 10px;
     selection-background-color: {BLUE};
 }}
+QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox {{
+    background: white;
+    border: 1px solid {LINE};
+    border-radius: 8px;
+    padding: 6px 10px;
+    selection-background-color: {BLUE};
+}}
+QComboBox:focus, QDateEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+    border: 1px solid {BLUE};
+}}
+QComboBox::drop-down, QDateEdit::drop-down {{ border: none; width: 24px; }}
+QComboBox::down-arrow, QDateEdit::down-arrow {{ image: url({CHEVRON}); width: 12px; height: 12px; }}
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ width: 0; border: none; }}
+#CellEditor {{ padding: 3px 6px; border-radius: 6px; }}
 QLineEdit:focus, QPlainTextEdit:focus {{
     border: 1px solid {BLUE};
 }}

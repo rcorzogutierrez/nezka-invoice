@@ -1,6 +1,6 @@
 # Nezka Invoice
 
-Aplicación de escritorio de **Elpidio Jr. Produce Co.** para gestionar los clientes y el catálogo de productos con los que se emiten proformas y facturas.
+Aplicación de escritorio de **Elpidio Jr. Produce Co.** para gestionar clientes, el catálogo de productos y los estimados (proformas).
 
 Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la interfaz y SQLite para guardar los datos en un archivo local, sin servidor. Funciona en Windows, macOS y Linux. El diseño usa la identidad de la proforma: logo, azul `#1e3f9e`, franja roja `#d7191f` y tablas con encabezado azul.
 
@@ -22,6 +22,17 @@ Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la int
 ![Productos](docs/productos.png)
 
 ![Formulario de producto](docs/producto-form.png)
+
+### Estimados (proformas)
+
+- La app trae cargado el cliente **Tree Logistics** con su estimado **PF-2026-1028** (20 productos, 2,437 cajas, $50,320.00), igual que la proforma.
+- Cada estimado tiene número (serie `PF-año-NNNN`, se sugiere el siguiente), cliente, fecha, referencia, estado (Borrador, Enviado, Aceptado, Rechazado) y notas.
+- Los productos se agregan buscándolos en el catálogo; las cajas y el precio por caja se editan en la tabla y los totales se recalculan solos. El estimado guarda una copia de los datos del producto, así que no cambia si luego se edita el catálogo.
+- Un cliente con estimados no se puede eliminar (se puede marcar inactivo).
+
+![Estimados](docs/estimados.png)
+
+![Estimado](docs/estimado-form.png)
 
 Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `Supr` eliminar el seleccionado.
 
@@ -48,7 +59,7 @@ En un archivo `nezka.db` dentro de la carpeta de datos del usuario:
 | macOS | `~/Library/Application Support/Elpidio Jr. Produce Co/Nezka Invoice/nezka.db` |
 | Linux | `~/.local/share/Elpidio Jr. Produce Co/Nezka Invoice/nezka.db` |
 
-Clientes, productos y fotos van en ese único archivo, así que para respaldar basta copiarlo. La variable de entorno `NEZKA_DB` permite usar otra ruta.
+Clientes, productos, fotos y estimados van en ese único archivo, así que para respaldar basta copiarlo. La variable de entorno `NEZKA_DB` permite usar otra ruta.
 
 ## Generar un ejecutable para el cliente
 
