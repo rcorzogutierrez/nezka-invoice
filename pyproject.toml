@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 dependencies = ["PySide6>=6.6"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pymupdf>=1.24"]
 
 [project.gui-scripts]
 nezka-invoice = "nezka_invoice.app:main"
@@ -16,3 +16,6 @@ packages = ["nezka_invoice", "nezka_invoice.ui"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.setuptools.package-data]
+nezka_invoice = ["assets/*.png", "assets/products/*"]

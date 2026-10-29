@@ -3,19 +3,19 @@ from __future__ import annotations
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from nezka_invoice.db import ClientRepository
 from nezka_invoice.models import Client
+from nezka_invoice.ui.theme import brand_stripe
+from nezka_invoice.ui.widgets import dialog_header, form_section
 
 
 class ClientDialog(QDialog):
@@ -25,9 +25,9 @@ class ClientDialog(QDialog):
         super().__init__(parent)
         self.repo = repo
         self.client = client
-        self.saved_client: Client | None = None
+        self.saved_record: Client | None = None
         self.setWindowTitle("Editar cliente" if client else "Nuevo cliente")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(920)
 
         self.name = QLineEdit()
         self.name.setPlaceholderText("Ej. Tree Logistics")
@@ -44,54 +44,83 @@ class ClientDialog(QDialog):
         self.zip_code = QLineEdit()
         self.country = QLineEdit()
         self.notes = QPlainTextEdit()
-        self.notes.setFixedHeight(70)
+        self.notes.setFixedHeight(90)
+        self.notes.setPlaceholderText("Condiciones de pago, horarios de entrega…")
         self.active = QCheckBox("Cliente activo")
         self.active.setChecked(True)
 
-        general = QGroupBox("Datos generales")
-        form = QFormLayout(general)
-        form.addRow("Nombre *", self.name)
-        form.addRow("Sucursal / razón social", self.branch)
-        form.addRow("Persona de contacto", self.contact_name)
-        form.addRow("Tax ID / EIN", self.tax_id)
+        self.phone.setPlaceholderText("305-000-0000")
+        self.mobile.setPlaceholderText("305-000-0000")
+        self.email.setPlaceholderText("compras@empresa.com")
 
-        contact = QGroupBox("Contacto")
-        form = QFormLayout(contact)
-        form.addRow("Correo", self.email)
-        phones = QHBoxLayout()
-        phones.addWidget(self.phone)
-        phones.addWidget(self.mobile)
-        self.phone.setPlaceholderText("Teléfono")
-        self.mobile.setPlaceholderText("Celular")
-        form.addRow("Teléfonos", phones)
+        header = dialog_header(
+            "Editar cliente" if client else "Nuevo cliente",
+            "Estos datos aparecen en el bloque CUSTOMER de las proformas y facturas.",
+        )
 
-        address = QGroupBox("Dirección")
-        form = QFormLayout(address)
-        form.addRow("Dirección", self.address)
-        form.addRow("Ciudad", self.city)
-        region = QHBoxLayout()
-        self.state.setPlaceholderText("Estado")
-        self.zip_code.setPlaceholderText("Código postal")
-        region.addWidget(self.state)
-        region.addWidget(self.zip_code)
-        form.addRow("Estado / CP", region)
-        form.addRow("País", self.country)
+        general = form_section(
+            "DATOS GENERALES",
+            [
+                [("Nombre del cliente *", self.name, 2)],
+                [("Sucursal / razón social", self.branch, 2)],
+                [("Persona de contacto", self.contact_name, 1), ("Tax ID / EIN", self.tax_id, 1)],
+            ],
+        )
+        contact = form_section(
+            "CONTACTO",
+            [
+                [("Correo electrónico", self.email, 2)],
+                [("Teléfono", self.phone, 1), ("Celular", self.mobile, 1)],
+            ],
+        )
+        address = form_section(
+            "DIRECCIÓN",
+            [
+                [("Dirección", self.address, 2)],
+                [("Ciudad", self.city, 1), ("Estado", self.state, 1)],
+                [("Código postal", self.zip_code, 1), ("País", self.country, 1)],
+            ],
+        )
+        other = form_section("NOTAS", [[("", self.notes, 2)]])
+        other.layout().addWidget(self.active, other.layout().rowCount(), 0, 1, 2)
 
-        other = QGroupBox("Otros")
-        form = QFormLayout(other)
-        form.addRow("Notas", self.notes)
-        form.addRow("", self.active)
+        save_button = QPushButton("Guardar cliente", objectName="Primary")
+        save_button.setDefault(True)
+        cancel_button = QPushButton("Cancelar")
+        save_button.clicked.connect(self.save)
+        cancel_button.clicked.connect(self.reject)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        buttons.addWidget(cancel_button)
+        buttons.addWidget(save_button)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Save).setText("Guardar")
-        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
-        buttons.accepted.connect(self.save)
-        buttons.rejected.connect(self.reject)
+        columns = QHBoxLayout()
+        columns.setSpacing(14)
+        left = QVBoxLayout()
+        left.setSpacing(14)
+        left.addWidget(general)
+        left.addWidget(contact)
+        left.addStretch(1)
+        right = QVBoxLayout()
+        right.setSpacing(14)
+        right.addWidget(address)
+        right.addWidget(other)
+        right.addStretch(1)
+        columns.addLayout(left, 1)
+        columns.addLayout(right, 1)
+
+        body = QVBoxLayout()
+        body.setContentsMargins(24, 18, 24, 20)
+        body.setSpacing(16)
+        body.addLayout(columns)
+        body.addLayout(buttons)
 
         layout = QVBoxLayout(self)
-        for box in (general, contact, address, other):
-            layout.addWidget(box)
-        layout.addWidget(buttons)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(brand_stripe())
+        layout.addWidget(header)
+        layout.addLayout(body)
 
         if client:
             self._load(client)
@@ -132,5 +161,5 @@ class ClientDialog(QDialog):
             )
             if answer != QMessageBox.Yes:
                 return
-        self.saved_client = self.repo.update(client) if client.id else self.repo.add(client)
+        self.saved_record = self.repo.update(client) if client.id else self.repo.add(client)
         self.accept()
