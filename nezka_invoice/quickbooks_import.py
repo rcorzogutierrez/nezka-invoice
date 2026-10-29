@@ -39,17 +39,37 @@ ALIASES = {
     "country": ("country", "billtocountry", "billingcountry", "billingaddresscountry"),
     "tax_id": ("taxid", "resalenum", "resalenumber", "taxregistrationnumber", "taxresaleno", "ein"),
     "fax": ("fax", "faxnum"),
+    "secondary_contact": ("secondarycontact", "altcontact", "cont2"),
+    "terms": ("terms",),
+    "account_no": ("accountno", "accountnumber"),
     "notes": ("note", "notes", "notepad"),
     "status": ("activestatus", "status", "active"),
     "hidden": ("hidden",),
 }
 # Free-form address lines: "Bill to 1".."Bill to 5" (Desktop) and BADDR1..5 (IIF).
 ADDRESS_LINE_RE = re.compile(r"^(?:billto|baddr|billingaddress)([1-5])$")
+SHIP_LINE_RE = re.compile(r"^(?:shipto|saddr)([1-5])$")
 
 HEADER_FIELDS = {alias: field_name for field_name, aliases in ALIASES.items() for alias in aliases}
 
-CITY_STATE_ZIP_RE = re.compile(r"^(?P<city>[^,]+),\s*(?P<state>[A-Za-z][A-Za-z .]*?)\.?\s+(?P<zip>\d{5}(?:-\d{4})?)$")
-COUNTRIES = {"usa", "us", "u.s.a.", "united states", "united states of america", "estados unidos"}
+# The "Bill to" lines are typed by hand, so the last line comes in many shapes:
+# "Miami, FL 33142", "MIAMI., FL. 33142", "Coral Gables,FL 33146", "HIALEAH,FL.33016-6314", "MIAMI FLO,33142".
+STATE = r"(?P<state>FLORIDA|FLA|FLO|[A-Z]{2})"
+CITY_STATE_ZIP_RE = re.compile(
+    rf"^(?P<city>.*?)[\s,.]*\b{STATE}(?![a-z])[\s,.]*(?P<zip>\d{{5}}(?:-\d{{4}})?)(?!\d)\W?[a-z0-9]*$", re.IGNORECASE
+)
+CITY_STATE_RE = re.compile(rf"^(?P<city>[^\d,]+?)\s*,\s*{STATE}\.?$", re.IGNORECASE)
+FLORIDA = {"FLORIDA", "FLA", "FLO"}
+COUNTRIES = {"usa", "us", "u.s.a", "united states", "united states of america", "estados unidos"}
+ZIP_ONLY_RE = re.compile(r"^[\s,.]*(?:(?:FLORIDA|FLA|FLO|FL)\.?)?[\s,.]*\d{5}(?:-\d{4})?\W*$", re.IGNORECASE)
+# Cities that are typed on the same line as the street ("2101 NW 15 AVE MIAMI, FL 33142").
+KNOWN_CITIES = (
+    "north miami beach", "north miami", "miami beach", "miami gardens", "miami lakes", "miami",
+    "hialeah gardens", "hialeah", "doral", "medley", "miramar", "hollywood", "homestead", "davie",
+    "opa locka", "opa-locka", "sunrise", "pompano beach", "fort lauderdale", "ft lauderdale", "ft. lauderdale",
+    "fort pierce", "fort. pierce", "boca raton", "coral gables", "kendall", "sweetwater",
+)
+SAME_AS_BILLING = {"same", "same as above", "igual"}
 
 
 def normalize_header(text: str) -> str:
@@ -182,6 +202,8 @@ def _find_header(rows: list[list[str]]) -> tuple[int, dict[int, str]]:
                 mapping.setdefault(column, HEADER_FIELDS[key])
             elif match := ADDRESS_LINE_RE.match(key):
                 mapping[column] = f"line{match.group(1)}"
+            elif match := SHIP_LINE_RE.match(key):
+                mapping[column] = f"ship{match.group(1)}"
         if "name" in mapping.values() or "company" in mapping.values():
             return index, mapping
     raise ImportFileError(
@@ -197,16 +219,47 @@ def _clean(value) -> str:
 
 def _split_address_lines(lines: list[str], skip: set[str]) -> dict[str, str]:
     """Split QuickBooks' free-form "Bill to" lines into address / city / state / zip / country."""
-    lines = [line for line in lines if line and line.lower() not in skip]
+    # The first line is usually the customer's name and the second the contact; drop those.
+    lines = [line for line in lines if line and normalize_header(line) not in skip]
+    # A ZIP typed on its own line belongs to the line above ("MIAMI FL," / "33142").
+    merged: list[str] = []
+    for line in lines:
+        if merged and ZIP_ONLY_RE.match(line) and not CITY_STATE_ZIP_RE.match(merged[-1]):
+            merged[-1] = f"{merged[-1]} {line.strip()}"
+        else:
+            merged.append(line)
+    lines = merged
     result = {}
-    if lines and lines[-1].lower() in COUNTRIES:
-        result["country"] = "USA"
-        lines.pop()
-    if lines and (match := CITY_STATE_ZIP_RE.match(lines[-1])):
-        result["city"] = match["city"].strip()
-        result["state"] = match["state"].strip()
-        result["zip_code"] = match["zip"]
-        lines.pop()
+    for index in range(len(lines) - 1, -1, -1):
+        match = CITY_STATE_ZIP_RE.match(lines[index]) or CITY_STATE_RE.match(lines[index])
+        if not match:
+            continue
+        city = match["city"].strip(" ,.")
+        if not city and index > 0 and CITY_STATE_ZIP_RE.match(lines[index - 1]):
+            continue  # "MIAMI, FL33178" followed by a repeated "FL 33178"
+        if any(ch.isdigit() for ch in city):
+            # The street is on the same line: "2101 NW 15 AVE MIAMI, FL 33142" or "1335 NW 21 TERRACE FL 33142".
+            street = city
+            city = ""
+            for known in KNOWN_CITIES:
+                if street.lower().endswith(" " + known):
+                    street, city = street[: -len(known)].rstrip(" ,."), street[-len(known) :]
+                    break
+            result["street_tail"] = street
+        state = match["state"].upper()
+        result["city"] = city.title() if city.isupper() else city
+        result["state"] = "FL" if state in FLORIDA else state
+        if "zip" in match.groupdict():
+            result["zip_code"] = match["zip"]
+        extra = []
+        for line in lines[index + 1 :]:
+            cleaned = line.strip(" .`'").lower()
+            if cleaned.replace(".", "") in {c.replace(".", "") for c in COUNTRIES}:
+                result["country"] = "USA"
+            elif cleaned not in ("florida", "fl") and not CITY_STATE_ZIP_RE.match(line):
+                extra.append(line)
+        lines = lines[:index] + ([result.pop("street_tail")] if "street_tail" in result else []) + extra
+        break
     if lines:
         result["address"] = ", ".join(lines)
     return result
@@ -247,11 +300,21 @@ def row_to_client(values: dict[str, str]) -> Client:
         notes.append(f"Otro teléfono: {values['alt_phone']}")
     if values.get("fax"):
         notes.append(f"Fax: {values['fax']}")
+    if values.get("secondary_contact"):
+        notes.append(f"Otro contacto: {values['secondary_contact']}")
+    if values.get("terms"):
+        notes.append(f"Términos de pago: {values['terms']}")
+    if values.get("account_no"):
+        notes.append(f"Cuenta: {values['account_no']}")
+    ship = [values.get(f"ship{i}", "") for i in range(1, 6)]
+    ship = [line for line in ship if line and normalize_header(line) not in {normalize_header(name), normalize_header(company)}]
+    if ship and not all(line.strip(" .`'").lower() in SAME_AS_BILLING for line in ship):
+        notes.append("Enviar a: " + ", ".join(line for line in ship if line.strip(" .`'").lower() not in SAME_AS_BILLING))
 
     address = {}
     lines = [values.get(f"line{i}", "") for i in range(1, 6)]
     if any(lines):
-        skip = {name.lower(), company.lower(), contact.lower()} - {""}
+        skip = {normalize_header(t) for t in (name, company, contact)} - {""}
         address = _split_address_lines(lines, skip)
     street = ", ".join(p for p in (values.get("street", ""), values.get("street2", "")) if p)
     if street:

@@ -2,7 +2,7 @@ import pytest
 
 from nezka_invoice.db import ClientRepository, connect
 from nezka_invoice.models import Client
-from nezka_invoice.quickbooks_import import ImportFileError, import_clients, preview_file
+from nezka_invoice.quickbooks_import import ImportFileError, import_clients, preview_file, row_to_client
 
 DESKTOP_CSV = (
     ",Active Status,Customer,Balance,Company,First Name,Last Name,Main Phone,Alt. Phone,Main Email,"
@@ -140,3 +140,36 @@ def test_desktop_xlsm_with_tips_sheet(tmp_path):
     assert freedom.contact_name == "Luis"
     assert freedom.email == ""
     assert freedom.notes == "Sitio web: www.freedomfresh.com"
+
+
+@pytest.mark.parametrize(
+    "lines, expected",
+    [
+        (["AAA PRODUCE LLC.", "Osmani Musuli", "1233 NW 21 st", "Miami FL 31442"], ("1233 NW 21 st", "Miami", "FL", "31442", "")),
+        (["ADOLFO AND SON", "2100 NW 13 AVE.", "MIAMI., FL. 33142", "U.S.A.`"], ("2100 NW 13 AVE.", "Miami", "FL", "33142", "USA")),
+        (["X", "4000 Ponce de Leon Boulevard", "Suit #470", "Coral Gables,FL 33146"],
+         ("4000 Ponce de Leon Boulevard, Suit #470", "Coral Gables", "FL", "33146", "")),
+        (["X", "2101 NW 15 AVE MIAMI, FL 33142"], ("2101 NW 15 AVE", "Miami", "FL", "33142", "")),
+        (["X", "500 NE 185 ST MIAMI FLA,", "33179"], ("500 NE 185 ST", "Miami", "FL", "33179", "")),
+        (["X", "7630 MIRAMAR PARK WAY", "MIRAMAR,FL.33023"], ("7630 MIRAMAR PARK WAY", "Miramar", "FL", "33023", "")),
+        (["X", "2151 NW 13 AVE", "MIAMI,FL 33142", "BAY 23"], ("2151 NW 13 AVE, BAY 23", "Miami", "FL", "33142", "")),
+        (["X", "11501NW 107 TH STREET", "MIAMI, FL33178", "FL 33178", "USA"], ("11501NW 107 TH STREET", "Miami", "FL", "33178", "USA")),
+        (["X", "201 MONTEREY - SALINAS HWY", "SALINAS, CA 93908"], ("201 MONTEREY - SALINAS HWY", "Salinas", "CA", "93908", "")),
+    ],
+)
+def test_hand_typed_bill_to_lines(lines, expected):
+    values = {"name": lines[0], "first_name": "Osmani", "last_name": "Musuli"}
+    values.update({f"line{i}": line for i, line in enumerate(lines, start=1)})
+    client = row_to_client(values)
+    assert (client.address, client.city, client.state, client.zip_code, client.country) == expected
+
+
+def test_terms_secondary_contact_and_ship_to_go_to_notes():
+    client = row_to_client({
+        "name": "ALWAYS FRESH", "terms": "Net 21", "secondary_contact": "Jorge",
+        "ship1": "ALWAYS FRESH", "ship2": "2101 NW 15 AVE", "ship3": "MIAMI, FL 33142",
+    })
+    assert client.notes.splitlines() == [
+        "Otro contacto: Jorge", "Términos de pago: Net 21", "Enviar a: 2101 NW 15 AVE, MIAMI, FL 33142",
+    ]
+    assert row_to_client({"name": "X", "ship1": "SAME"}).notes == ""
