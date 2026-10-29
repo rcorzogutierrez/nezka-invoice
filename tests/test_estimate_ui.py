@@ -72,3 +72,18 @@ def test_list_marks_estimates_with_check_boxes(app, repos):
     model.setData(model.index(0, 0), Qt.Unchecked, Qt.CheckStateRole)
     assert len(page.marked_records()) == 1
     assert page.edit_button.isEnabled()
+
+
+def test_preview_shows_the_pdf_without_saving_a_file(app, repos, tmp_path, monkeypatch):
+    from nezka_invoice.proforma import ProformaRenderer, pdf_bytes
+    from nezka_invoice.ui.pdf_preview import PdfPreviewDialog
+
+    monkeypatch.chdir(tmp_path)
+    estimates, clients, products = repos
+    [estimate] = estimates.list()
+    pdf = pdf_bytes([ProformaRenderer(estimate, clients.get(estimate.client_id))])
+    assert pdf.startswith(b"%PDF")
+    dialog = PdfPreviewDialog("Vista previa", pdf)
+    assert dialog.document.pageCount() == 2
+    assert dialog.page_label.text() == "2 páginas"
+    assert not list(tmp_path.glob("*.pdf"))
