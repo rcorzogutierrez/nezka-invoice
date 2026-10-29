@@ -2,7 +2,7 @@
 
 Aplicación de escritorio de **Elpidio Jr. Produce Co.** para gestionar los clientes a los que se emiten proformas y facturas.
 
-Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la interfaz y SQLite para guardar los datos en un archivo local, sin servidor. Funciona en Windows, macOS y Linux.
+Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la interfaz y SQLite para guardar los datos en un archivo local, sin servidor. Funciona en Windows, macOS y Linux. El diseño usa la identidad de la proforma: logo, azul `#1e3f9e`, franja roja `#d7191f` y tablas con encabezado azul.
 
 ![Lista de clientes](docs/clientes.png)
 
@@ -44,10 +44,11 @@ Para respaldar los clientes basta copiar ese archivo. La variable de entorno `NE
 
 ```bash
 pip install pyinstaller
-pyinstaller --name "Nezka Invoice" --windowed --onefile -p . nezka_invoice/__main__.py
+pyinstaller --name "Nezka Invoice" --windowed --onefile -p . \
+  --add-data "nezka_invoice/assets:nezka_invoice/assets" nezka_invoice/__main__.py
 ```
 
-El ejecutable queda en `dist/`. Hay que generarlo en el mismo sistema operativo donde se va a usar (un `.exe` se genera en Windows).
+En Windows el separador de `--add-data` es `;` en lugar de `:`. El ejecutable queda en `dist/`. Hay que generarlo en el mismo sistema operativo donde se va a usar (un `.exe` se genera en Windows).
 
 ## Pruebas
 

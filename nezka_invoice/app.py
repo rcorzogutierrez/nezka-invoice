@@ -8,6 +8,7 @@ from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication
 
 from nezka_invoice.db import ClientRepository
+from nezka_invoice.ui import theme
 from nezka_invoice.ui.main_window import MainWindow
 
 
@@ -25,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setOrganizationName("Elpidio Jr. Produce Co")
     app.setApplicationName("Nezka Invoice")
     app.setStyle("Fusion")
+    app.setStyleSheet(theme.STYLESHEET)
 
     repo = ClientRepository(database_path())
     window = MainWindow(repo)
