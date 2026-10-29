@@ -1,23 +1,12 @@
-import os
-import sys
-
 import pytest
-
-if sys.platform.startswith("linux"):
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+import shiboken6
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository, connect
 from nezka_invoice.models import Estimate
 from nezka_invoice.ui.estimate_dialog import EstimateDialog
 from nezka_invoice.ui.estimates_page import EstimatesPage
-
-
-@pytest.fixture(scope="module")
-def app():
-    yield QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
@@ -52,6 +41,7 @@ def test_saving_stays_in_the_form_and_enables_printing(app, repos):
     # Closing after a save reports it as accepted so the list refreshes.
     dialog.reject()
     assert dialog.result() == 1
+    shiboken6.delete(dialog)
 
 
 def test_list_marks_estimates_with_check_boxes(app, repos):
@@ -72,6 +62,7 @@ def test_list_marks_estimates_with_check_boxes(app, repos):
     model.setData(model.index(0, 0), Qt.Unchecked, Qt.CheckStateRole)
     assert len(page.marked_records()) == 1
     assert page.edit_button.isEnabled()
+    shiboken6.delete(page)
 
 
 def test_preview_shows_the_pdf_without_saving_a_file(app, repos, tmp_path, monkeypatch):
@@ -87,3 +78,4 @@ def test_preview_shows_the_pdf_without_saving_a_file(app, repos, tmp_path, monke
     assert dialog.document.pageCount() == 2
     assert dialog.page_label.text() == "2 páginas"
     assert not list(tmp_path.glob("*.pdf"))
+    shiboken6.delete(dialog)

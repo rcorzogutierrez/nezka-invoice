@@ -1,23 +1,11 @@
-import os
-import sys
-
 import pymupdf
 import pytest
 
-if sys.platform.startswith("linux"):
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 from PySide6.QtGui import QPageSize
 from PySide6.QtPrintSupport import QPrinter
-from PySide6.QtWidgets import QApplication
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository, connect
 from nezka_invoice.proforma import ProformaRenderer, default_file_name, long_date, render_estimates
-
-
-@pytest.fixture(scope="module")
-def app():
-    yield QApplication.instance() or QApplication([])
 
 
 @pytest.fixture
