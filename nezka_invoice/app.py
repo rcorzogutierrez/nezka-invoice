@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication
 
-from nezka_invoice.db import ClientRepository
+from nezka_invoice.db import ClientRepository, ProductRepository
 from nezka_invoice.ui import theme
 from nezka_invoice.ui.main_window import MainWindow
 
@@ -28,10 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyle("Fusion")
     app.setStyleSheet(theme.STYLESHEET)
 
-    repo = ClientRepository(database_path())
-    window = MainWindow(repo)
+    clients = ClientRepository(database_path())
+    products = ProductRepository(database_path())
+    window = MainWindow(clients, products)
     window.show()
     try:
         return app.exec()
     finally:
-        repo.close()
+        clients.close()
+        products.close()

@@ -3,10 +3,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFrame,
-    QGridLayout,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
@@ -18,6 +15,7 @@ from PySide6.QtWidgets import (
 from nezka_invoice.db import ClientRepository
 from nezka_invoice.models import Client
 from nezka_invoice.ui.theme import brand_stripe
+from nezka_invoice.ui.widgets import dialog_header, form_section
 
 
 class ClientDialog(QDialog):
@@ -27,7 +25,7 @@ class ClientDialog(QDialog):
         super().__init__(parent)
         self.repo = repo
         self.client = client
-        self.saved_client: Client | None = None
+        self.saved_record: Client | None = None
         self.setWindowTitle("Editar cliente" if client else "Nuevo cliente")
         self.setMinimumWidth(920)
 
@@ -55,19 +53,12 @@ class ClientDialog(QDialog):
         self.mobile.setPlaceholderText("305-000-0000")
         self.email.setPlaceholderText("compras@empresa.com")
 
-        title = QLabel("Editar cliente" if client else "Nuevo cliente", objectName="FormTitle")
-        subtitle = QLabel(
+        header = dialog_header(
+            "Editar cliente" if client else "Nuevo cliente",
             "Estos datos aparecen en el bloque CUSTOMER de las proformas y facturas.",
-            objectName="PageSubtitle",
         )
-        header = QFrame(objectName="FormHeader")
-        header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(24, 18, 24, 16)
-        header_layout.setSpacing(2)
-        header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
 
-        general = self._section(
+        general = form_section(
             "DATOS GENERALES",
             [
                 [("Nombre del cliente *", self.name, 2)],
@@ -75,14 +66,14 @@ class ClientDialog(QDialog):
                 [("Persona de contacto", self.contact_name, 1), ("Tax ID / EIN", self.tax_id, 1)],
             ],
         )
-        contact = self._section(
+        contact = form_section(
             "CONTACTO",
             [
                 [("Correo electrónico", self.email, 2)],
                 [("Teléfono", self.phone, 1), ("Celular", self.mobile, 1)],
             ],
         )
-        address = self._section(
+        address = form_section(
             "DIRECCIÓN",
             [
                 [("Dirección", self.address, 2)],
@@ -90,7 +81,7 @@ class ClientDialog(QDialog):
                 [("Código postal", self.zip_code, 1), ("País", self.country, 1)],
             ],
         )
-        other = self._section("NOTAS", [[("", self.notes, 2)]])
+        other = form_section("NOTAS", [[("", self.notes, 2)]])
         other.layout().addWidget(self.active, other.layout().rowCount(), 0, 1, 2)
 
         save_button = QPushButton("Guardar cliente", objectName="Primary")
@@ -134,28 +125,6 @@ class ClientDialog(QDialog):
         if client:
             self._load(client)
 
-    @staticmethod
-    def _section(title: str, rows: list[list[tuple[str, QWidget, int]]]) -> QFrame:
-        """A white card with a blue section label and fields laid out in two columns."""
-        card = QFrame(objectName="Card")
-        grid = QGridLayout(card)
-        grid.setContentsMargins(18, 14, 18, 16)
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(4)
-        grid.addWidget(QLabel(title, objectName="SectionLabel"), 0, 0, 1, 2)
-        row = 1
-        for fields in rows:
-            column = 0
-            for label, widget, span in fields:
-                if label:
-                    grid.addWidget(QLabel(label, objectName="FieldLabel"), row, column, 1, span)
-                grid.addWidget(widget, row + 1, column, 1, span)
-                column += span
-            row += 2
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        return card
-
     def _text_fields(self) -> dict[str, QLineEdit]:
         return {
             name: getattr(self, name)
@@ -192,5 +161,5 @@ class ClientDialog(QDialog):
             )
             if answer != QMessageBox.Yes:
                 return
-        self.saved_client = self.repo.update(client) if client.id else self.repo.add(client)
+        self.saved_record = self.repo.update(client) if client.id else self.repo.add(client)
         self.accept()

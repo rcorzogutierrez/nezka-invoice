@@ -1,6 +1,6 @@
 # Nezka Invoice
 
-Aplicación de escritorio de **Elpidio Jr. Produce Co.** para gestionar los clientes a los que se emiten proformas y facturas.
+Aplicación de escritorio de **Elpidio Jr. Produce Co.** para gestionar los clientes y el catálogo de productos con los que se emiten proformas y facturas.
 
 Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la interfaz y SQLite para guardar los datos en un archivo local, sin servidor. Funciona en Windows, macOS y Linux. El diseño usa la identidad de la proforma: logo, azul `#1e3f9e`, franja roja `#d7191f` y tablas con encabezado azul.
 
@@ -13,7 +13,17 @@ Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la int
 - **Buscar** por nombre, contacto, correo, teléfono, ciudad o Tax ID, y ordenar por cualquier columna.
 - Avisa si el nombre ya existe y valida el formato del correo.
 
-Atajos: `Ctrl+N` nuevo cliente, `Ctrl+F` buscar, `Supr` eliminar el seleccionado.
+### Productos
+
+- La app trae precargados los **55 productos del catálogo** (`Productos.pdf`) con su foto, UPC, tamaño, pack, cajas por pallet, precio por caja y notas (origen, kosher…). Las referencias (01, 02, …) son el orden del catálogo, las mismas que usan las proformas.
+- Se cargan una sola vez, al crear la base de datos; después se pueden editar, desactivar o eliminar sin que vuelvan a aparecer.
+- **Agregar productos** con *Nuevo producto*: la referencia siguiente se sugiere sola y la foto se elige desde el disco (se reduce a 600 px y se guarda dentro de la base de datos).
+
+![Productos](docs/productos.png)
+
+![Formulario de producto](docs/producto-form.png)
+
+Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `Supr` eliminar el seleccionado.
 
 ![Formulario de cliente](docs/cliente-form.png)
 
@@ -38,7 +48,7 @@ En un archivo `nezka.db` dentro de la carpeta de datos del usuario:
 | macOS | `~/Library/Application Support/Elpidio Jr. Produce Co/Nezka Invoice/nezka.db` |
 | Linux | `~/.local/share/Elpidio Jr. Produce Co/Nezka Invoice/nezka.db` |
 
-Para respaldar los clientes basta copiar ese archivo. La variable de entorno `NEZKA_DB` permite usar otra ruta.
+Clientes, productos y fotos van en ese único archivo, así que para respaldar basta copiarlo. La variable de entorno `NEZKA_DB` permite usar otra ruta.
 
 ## Generar un ejecutable para el cliente
 
@@ -49,6 +59,17 @@ pyinstaller --name "Nezka Invoice" --windowed --onefile -p . \
 ```
 
 En Windows el separador de `--add-data` es `;` en lugar de `:`. El ejecutable queda en `dist/`. Hay que generarlo en el mismo sistema operativo donde se va a usar (un `.exe` se genera en Windows).
+
+## Actualizar el catálogo incluido
+
+Si cambia `Productos.pdf`, se regenera el catálogo que trae la app (JSON + fotos en `nezka_invoice/assets/products/`):
+
+```bash
+pip install -r requirements-dev.txt
+python tools/import_catalog.py ruta/a/Productos.pdf
+```
+
+Esto solo afecta a instalaciones nuevas; una base de datos existente conserva sus productos.
 
 ## Pruebas
 

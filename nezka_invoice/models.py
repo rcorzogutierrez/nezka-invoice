@@ -70,3 +70,46 @@ class Client:
         if self.zip_code:
             text = f"{text} {self.zip_code}".strip()
         return text
+
+
+@dataclass
+class Product:
+    """An item from the catalog that can be quoted and invoiced."""
+
+    description: str
+    ref: str = ""
+    upc: str = ""
+    size: str = ""
+    pack: str = ""
+    qty_per_pallet: str = ""
+    price_per_box: float = 0.0
+    notes: str = ""
+    image: bytes | None = field(default=None, repr=False)
+    active: bool = True
+    id: int | None = None
+    created_at: str = field(default="", compare=False)
+    updated_at: str = field(default="", compare=False)
+
+    EDITABLE_FIELDS = (
+        "ref", "description", "upc", "size", "pack", "qty_per_pallet", "price_per_box", "notes", "image", "active",
+    )
+
+    def normalized(self) -> "Product":
+        values = {}
+        for f in fields(self):
+            value = getattr(self, f.name)
+            values[f.name] = value.strip() if isinstance(value, str) else value
+        values["price_per_box"] = round(float(values["price_per_box"] or 0), 2)
+        return Product(**values)
+
+    def validate(self) -> list[str]:
+        errors = []
+        if not self.description.strip():
+            errors.append("La descripción del producto es obligatoria.")
+        if self.price_per_box is None or float(self.price_per_box) < 0:
+            errors.append("El precio por caja no puede ser negativo.")
+        return errors
+
+    @property
+    def label(self) -> str:
+        return f"{self.ref}. {self.description}" if self.ref else self.description

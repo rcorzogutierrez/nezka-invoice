@@ -168,6 +168,12 @@ QTableCornerButton::section {{ background: {BLUE}; border: none; }}
     font-weight: 700;
     letter-spacing: 1px;
 }}
+#ImagePreview {{
+    background: white;
+    border: 1px dashed #c9cfdc;
+    border-radius: 10px;
+    color: {MUTED};
+}}
 #FieldLabel {{ color: {MUTED}; font-size: 12px; padding-top: 6px; }}
 
 QStatusBar {{ background: white; color: {MUTED}; border-top: 1px solid {LINE}; }}
