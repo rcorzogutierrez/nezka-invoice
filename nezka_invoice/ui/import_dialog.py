@@ -27,11 +27,12 @@ from nezka_invoice.ui.widgets import dialog_header
 
 HELP_TEXT = (
     "En QuickBooks Desktop: <b>Customers › Customer Center › Excel › Export Customer List</b> "
-    "y guarda como <b>CSV</b> o <b>.xlsx</b>. También sirve <b>File › Utilities › Export › Lists to IIF Files</b> "
+    "y guarda como <b>CSV</b> o <b>Excel</b>. También sirve <b>File › Utilities › Export › Lists to IIF Files</b> "
     "marcando <i>Customer List</i>.<br>En QuickBooks Online: <b>Sales › Customers › Export</b>."
 )
 
 COLUMNS = ("ESTADO", "CLIENTE", "CONTACTO", "CORREO", "TELÉFONO", "UBICACIÓN")
+MAX_COLUMN_WIDTHS = (140, 320, 170, 230, 150, 200)
 
 
 class ImportClientsDialog(QDialog):
@@ -70,8 +71,7 @@ class ImportClientsDialog(QDialog):
         self.table.setWordWrap(False)
         self.table.verticalHeader().hide()
         self.table.horizontalHeader().setHighlightSections(False)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.table.horizontalHeader().setStretchLastSection(True)
 
         self.summary = QLabel("", objectName="SectionLabel")
         self.import_button = QPushButton("Importar clientes", objectName="Primary")
@@ -104,7 +104,7 @@ class ImportClientsDialog(QDialog):
             self,
             "Lista de clientes de QuickBooks",
             str(Path.home()),
-            "Exportación de QuickBooks (*.csv *.xlsx *.iif *.txt);;Todos los archivos (*)",
+            "Exportación de QuickBooks (*.csv *.xlsx *.xlsm *.iif *.txt);;Todos los archivos (*)",
         )
         if path:
             self.load(path)
@@ -135,6 +135,10 @@ class ImportClientsDialog(QDialog):
                 elif col == 0:
                     item.setForeground(QColor(theme.GREEN))
                 self.table.setItem(r, col, item)
+        # Fit the columns to their text, but keep long names and emails from pushing the rest off screen.
+        self.table.resizeColumnsToContents()
+        for col, limit in enumerate(MAX_COLUMN_WIDTHS):
+            self.table.setColumnWidth(col, min(self.table.columnWidth(col), limit))
 
         new = len(self.preview.new_rows) if self.preview else 0
         skipped = len(self.preview.skipped_rows) if self.preview else 0

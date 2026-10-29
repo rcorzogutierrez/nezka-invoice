@@ -1,6 +1,6 @@
 """Read the customer list exported from QuickBooks and turn it into clients.
 
-QuickBooks (Desktop and Online) can export customers as an Excel file (.xlsx),
+QuickBooks (Desktop and Online) can export customers as an Excel file (.xlsx / .xlsm),
 a CSV file or, in Desktop, an IIF file (File > Utilities > Export > Lists to IIF).
 The column names differ between versions, so headers are matched against a list
 of known aliases instead of fixed positions.
@@ -16,7 +16,8 @@ from pathlib import Path
 
 from nezka_invoice.models import EMAIL_RE, Client
 
-SUPPORTED_SUFFIXES = (".csv", ".xlsx", ".iif", ".txt")
+SUPPORTED_SUFFIXES = (".csv", ".xlsx", ".xlsm", ".iif", ".txt")
+EXCEL_SUFFIXES = (".xlsx", ".xlsm")
 
 # Normalized header -> client field. Headers are lowercased and stripped of
 # everything that is not a letter or digit ("Bill to 1" -> "billto1").
@@ -37,6 +38,7 @@ ALIASES = {
     "zip_code": ("zip", "zipcode", "postalcode", "billtozip", "billingzip", "billingzipcode", "billingaddresspostalcode"),
     "country": ("country", "billtocountry", "billingcountry", "billingaddresscountry"),
     "tax_id": ("taxid", "resalenum", "resalenumber", "taxregistrationnumber", "taxresaleno", "ein"),
+    "fax": ("fax", "faxnum"),
     "notes": ("note", "notes", "notepad"),
     "status": ("activestatus", "status", "active"),
     "hidden": ("hidden",),
@@ -116,8 +118,18 @@ def _read_xlsx(path: Path) -> list[list[str]]:
     except Exception as exc:
         raise ImportFileError(f"No se pudo abrir el archivo de Excel: {exc}") from exc
     try:
-        sheet = workbook.active
-        return [["" if v is None else str(v) for v in row] for row in sheet.iter_rows(values_only=True)]
+        # QuickBooks' workbook can include an "Export Tips" sheet; use the first sheet with a customer header.
+        sheets = [workbook.active] + [s for s in workbook.worksheets if s is not workbook.active]
+        tables = []
+        for sheet in sheets:
+            rows = [["" if v is None else str(v) for v in row] for row in sheet.iter_rows(values_only=True)]
+            try:
+                _find_header(rows)
+            except ImportFileError:
+                tables.append(rows)
+                continue
+            return rows
+        return tables[0] if tables else []
     finally:
         workbook.close()
 
@@ -140,7 +152,7 @@ def _read_iif(data: bytes) -> list[list[str]]:
 def read_rows(path: str | Path) -> list[list[str]]:
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix == ".xlsx":
+    if suffix in EXCEL_SUFFIXES:
         return _read_xlsx(path)
     if suffix == ".xls":
         raise ImportFileError(
@@ -179,7 +191,7 @@ def _find_header(rows: list[list[str]]) -> tuple[int, dict[int, str]]:
 
 
 def _clean(value) -> str:
-    text = "" if value is None else str(value).strip()
+    text = "" if value is None else re.sub(r"[ \t]{2,}", " ", str(value).strip())
     return "" if text.lower() in ("nan", "none") else text
 
 
@@ -222,12 +234,19 @@ def row_to_client(values: dict[str, str]) -> Client:
 
     email, extra_email = _first_email(values.get("email", ""))
     if extra_email:
-        notes.append(f"Otros correos: {extra_email}" if email else f"Correo no válido en QuickBooks: {extra_email}")
+        if email:
+            notes.append(f"Otros correos: {extra_email}")
+        elif "@" not in extra_email:
+            notes.append(f"Sitio web: {extra_email}")
+        else:
+            notes.append(f"Correo no válido en QuickBooks: {extra_email}")
 
     phone = values.get("phone", "")
     mobile = values.get("mobile", "") or values.get("alt_phone", "")
     if values.get("mobile") and values.get("alt_phone"):
         notes.append(f"Otro teléfono: {values['alt_phone']}")
+    if values.get("fax"):
+        notes.append(f"Fax: {values['fax']}")
 
     address = {}
     lines = [values.get(f"line{i}", "") for i in range(1, 6)]
@@ -280,7 +299,8 @@ def parse_rows(rows: list[list[str]], existing_names: set[str] = frozenset()) ->
         if ":" in name:
             preview.jobs_skipped += 1
             continue
-        if name.lower().startswith("total"):
+        # Report exports end with a "TOTAL" row; customers like "TOTAL GREEN TROPICALS" are kept.
+        if name.lower() == "total":
             continue
         client = row_to_client(values)
         key = client.name.lower()

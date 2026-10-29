@@ -113,3 +113,30 @@ def test_duplicates_are_skipped_and_import_saves_only_new(tmp_path, repo):
 def test_file_without_customer_column(tmp_path):
     with pytest.raises(ImportFileError):
         preview_file(write(tmp_path, "x.csv", "Item,Price\nApple,1\n"))
+
+
+def test_desktop_xlsm_with_tips_sheet(tmp_path):
+    """Layout of a real QuickBooks Desktop "Export Customer List" workbook."""
+    openpyxl = pytest.importorskip("openpyxl")
+    workbook = openpyxl.Workbook()
+    workbook.active.title = "QuickBooks Desktop Export Tips"
+    workbook.active.append([None, "Tips"])
+    sheet = workbook.create_sheet("Sheet1")
+    sheet.append([None, "Customer", "Balance Total", "Company", "First Name", "Last Name", "Primary Contact",
+                  "Main Phone", "Fax", "Main Email"])
+    sheet.append([None, "ADOLFO  AND  SON  PRODUCE", 0, "ADOLFO  AND  SON  PRODUCE", None, None, None, None, None, None])
+    sheet.append([None, "TOTAL GREEN TROPICALS,INC.", 0, "TOTAL GREEN TROPICALS,INC.", None, None, None,
+                  "786-332-3850", "305-635-2350", "management@totalgreentropicals.com"])
+    sheet.append([None, "FREEDOM FRESH", 0, "FREEDOM FRESH", "Ana", "Ruiz", "Luis", None, None, "www.freedomfresh.com"])
+    path = tmp_path / "quickbook customer.xlsm"
+    workbook.save(path)
+
+    adolfo, total_green, freedom = (r.client for r in preview_file(path).rows)
+    assert adolfo.name == "ADOLFO AND SON PRODUCE"
+    assert adolfo.branch == ""
+    assert total_green.name == "TOTAL GREEN TROPICALS,INC."
+    assert total_green.phone == "786-332-3850"
+    assert total_green.notes == "Fax: 305-635-2350"
+    assert freedom.contact_name == "Luis"
+    assert freedom.email == ""
+    assert freedom.notes == "Sitio web: www.freedomfresh.com"
