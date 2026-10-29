@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, QUrl
+from PySide6.QtCore import QStandardPaths, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QPageLayout, QPageSize
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QWidget
@@ -61,6 +61,8 @@ class EstimatePrinting:
             on_save=lambda: self.save_pdf(estimates),
             parent=self.parent,
         )
+        # Free the PDF document when the window closes instead of keeping it until the parent goes.
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.exec()
 
     def print(self, estimates: list[Estimate]) -> None:
