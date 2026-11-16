@@ -171,6 +171,8 @@ class ClientRepository:
 SUPPLIER_CATALOG = "supplier_2026_11.json"
 # Products Rafa sent one by one after the supplier catalog (refs 90 onwards).
 ADDED_PRODUCTS = "added_2026_11.json"
+# Products found later in the supplier's full PDF catalog (refs 91 onwards).
+SUPPLIER_CATALOG_B = "supplier_2026_11_b.json"
 
 # UPCs corrected from the supplier's catalog (November 2026): ref -> (value in Productos.pdf, correct value).
 # Only codes printed in full in the supplier's catalog are here; doubtful ones are listed in the product notes.
@@ -210,6 +212,11 @@ def load_supplier_products(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
 def load_added_products(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
     """Products added after the supplier catalog: the 2.72 kg Sazón Mixto jar (ref 90)."""
     return _load_products(catalog_dir, ADDED_PRODUCTS)
+
+
+def load_supplier_products_b(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
+    """Products from the supplier's full PDF catalog that weren't in its first pages (refs 91 onwards)."""
+    return _load_products(catalog_dir, SUPPLIER_CATALOG_B)
 
 
 class ProductRepository:
@@ -518,6 +525,11 @@ def _fill_supplier_upcs(conn: sqlite3.Connection) -> None:
             )
 
 
+def _add_supplier_products_b(conn: sqlite3.Connection) -> None:
+    """The second batch from the supplier's catalog, added without touching the user's own products."""
+    _add_missing_products(ProductRepository(conn), load_supplier_products_b())
+
+
 # Each step runs once per database, tracked with PRAGMA user_version. Seeds only run on
 # databases created by the app (not in tests that pass seed=False).
 MIGRATIONS = [
@@ -526,6 +538,7 @@ MIGRATIONS = [
     ("", _add_supplier_products),
     ("", _add_new_products),
     ("", _fill_supplier_upcs),
+    ("", _add_supplier_products_b),
 ]
 
 
