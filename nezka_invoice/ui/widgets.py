@@ -330,6 +330,9 @@ class ListPage(QWidget):
         toolbar.addWidget(self.search, 1)
         toolbar.addSpacing(8)
         toolbar.addWidget(self.show_inactive)
+        for widget in self.toolbar_filters():
+            toolbar.addSpacing(8)
+            toolbar.addWidget(widget)
         toolbar.addStretch(1)
         for button in self.record_buttons:
             toolbar.addWidget(button)
@@ -372,6 +375,14 @@ class ListPage(QWidget):
         """Extra buttons shown next to the "new" button."""
         return []
 
+    def toolbar_filters(self) -> list[QWidget]:
+        """Extra filter widgets shown after "Mostrar inactivos"; they should call refresh when changed."""
+        return []
+
+    def filter_records(self, records: list) -> list:
+        """Narrow the listed records with the extra filters."""
+        return records
+
     def selection_buttons(self) -> list[QPushButton]:
         """Extra buttons next to "Editar" that act on the marked records (see marked_records)."""
         return []
@@ -388,7 +399,9 @@ class ListPage(QWidget):
 
     # Behaviour
     def refresh(self, *_args, select_id: int | None = None) -> None:
-        records = self.repo.list(self.search.text(), include_inactive=self.show_inactive.isChecked())
+        records = self.filter_records(
+            self.repo.list(self.search.text(), include_inactive=self.show_inactive.isChecked())
+        )
         self.model.set_records(records)
         if select_id is not None:
             for row in range(self.proxy.rowCount()):

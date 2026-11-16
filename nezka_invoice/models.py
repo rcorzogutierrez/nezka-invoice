@@ -114,6 +114,23 @@ class Product:
     def label(self) -> str:
         return f"{self.ref}. {self.description}" if self.ref else self.description
 
+    def missing_info(self) -> list[str]:
+        """What still has to be asked for (to the supplier) before the product is complete."""
+        missing = [
+            name
+            for name, value in (
+                ("UPC", self.upc), ("tamaño", self.size), ("pack", self.pack), ("cajas/pallet", self.qty_per_pallet),
+            )
+            if not str(value).strip()
+        ]
+        if self.upc.strip() and "UPC POR CONFIRMAR" in self.notes.upper():
+            missing.append("UPC por confirmar")
+        if not self.price_per_box:
+            missing.append("precio")
+        if not self.image:
+            missing.append("foto")
+        return missing
+
 
 ESTIMATE_STATUSES = ("Borrador", "Enviado", "Aceptado", "Rechazado")
 
