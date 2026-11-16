@@ -14,6 +14,7 @@ from nezka_invoice.db import (
     load_catalog,
     load_supplier_products,
 )
+from nezka_invoice import missing_data
 from nezka_invoice.models import Product
 
 
@@ -263,12 +264,47 @@ def test_products_page_filters_products_with_missing_info(app, tmp_path):
     repo = ProductRepository(conn)
     page = ProductsPage(repo)
     total = page.proxy.rowCount()
-    page.only_missing.setChecked(True)
+    page.missing_filter.setCurrentIndex(page.missing_filter.findData(missing_data.ANY))
     listed = [page.proxy.index(row, 0).data(Qt.UserRole) for row in range(page.proxy.rowCount())]
     assert 0 < len(listed) < total
     assert all(p.missing_info() for p in listed)
     assert "NEZKA WHITE DISTILLED VINEGAR" in {p.description for p in listed}
     assert "NEZKA CORN FLAKES CEREAL" in {p.description for p in listed}  # still needs a price
-    page.only_missing.setChecked(False)
+    page.missing_filter.setCurrentIndex(0)
     assert page.proxy.rowCount() == total
+    conn.close()
+
+
+def test_products_page_filters_by_one_missing_item_and_exports_to_excel(app, tmp_path):
+    from openpyxl import load_workbook
+
+    from nezka_invoice.ui.products_page import ProductsPage
+
+    conn = connect(tmp_path / "nezka.db")
+    page = ProductsPage(ProductRepository(conn))
+    page.missing_filter.setCurrentIndex(page.missing_filter.findData("UPC"))
+    listed = [page.proxy.index(row, 0).data(Qt.UserRole) for row in range(page.proxy.rowCount())]
+    assert listed and all("UPC" in p.missing_info() for p in listed)
+    assert "NEZKA WHITE DISTILLED VINEGAR" in {p.description for p in listed}
+    assert "NEZKA CORN FLAKES CEREAL" not in {p.description for p in listed}  # it has its UPC now
+
+    saved = page.export_missing(path=str(tmp_path / "faltantes"))
+    assert saved.name == "faltantes.xlsx"
+    ws = load_workbook(saved).active
+    assert ws["A1"].value == "Productos con datos faltantes (sin upc)"
+    assert [c.value for c in ws[4]][:3] == ["REF.", "DESCRIPCIÓN", "UPC"]
+    rows = list(ws.iter_rows(min_row=5, values_only=True))
+    assert len(rows) == len(listed)
+    vinegar = next(r for r in rows if r[1] == "NEZKA WHITE DISTILLED VINEGAR")
+    assert vinegar[2] is None and "UPC" in vinegar[7]
+    # The company's prices never go to the supplier.
+    assert all("$" not in str(v) for r in rows for v in r if v is not None)
+    assert ws.cell(5 + rows.index(vinegar), 3).fill.fgColor.rgb.endswith("FFF2B3")
+
+    # With every product listed, only the incomplete ones are exported.
+    page.missing_filter.setCurrentIndex(0)
+    saved = page.export_missing(path=str(tmp_path / "todos.xlsx"))
+    rows = list(load_workbook(saved).active.iter_rows(min_row=5, values_only=True))
+    assert 0 < len(rows) < page.proxy.rowCount()
+    assert all(r[7] for r in rows)
     conn.close()
