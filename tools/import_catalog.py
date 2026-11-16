@@ -4,8 +4,8 @@
     python tools/import_catalog.py Productos.pdf
 
 Writes nezka_invoice/assets/products/catalog.json and one PNG per product. The reference
-number is the product's position in the list (01, 02, ...), which is what the proformas use.
-Products 56 onwards come from the supplier catalog (supplier_2026_11.json) and UPC_FIXES in db.py;
+Products 56-89 come from the supplier catalog (supplier_2026_11.json) and UPC_FIXES in db.py, and 90 onwards
+from added_2026_11.json; this script does not touch them.
 this script does not touch them.
 """
 
