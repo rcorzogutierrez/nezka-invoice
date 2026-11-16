@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from nezka_invoice.db import ClientRepository, EstimateRepository, ProductRepository
 from nezka_invoice.ui import theme
+from nezka_invoice.ui.catalog_page import CatalogPage
 from nezka_invoice.ui.clients_page import ClientsPage
 from nezka_invoice.ui.estimates_page import EstimatesPage
 from nezka_invoice.ui.products_page import ProductsPage
@@ -64,7 +65,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.resize(1360, 800)
 
-        self.pages = [ClientsPage(clients), ProductsPage(products), EstimatesPage(estimates, clients, products)]
+        self.pages = [
+            ClientsPage(clients),
+            ProductsPage(products),
+            CatalogPage(products),
+            EstimatesPage(estimates, clients, products),
+        ]
         self.stack = QStackedWidget()
         for page in self.pages:
             self.stack.addWidget(page)
