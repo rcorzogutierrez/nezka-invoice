@@ -10,6 +10,7 @@ from nezka_invoice.db import (
     ProductRepository,
     ValidationError,
     connect,
+    load_added_products,
     load_catalog,
     load_supplier_products,
 )
@@ -44,13 +45,13 @@ def test_new_database_is_seeded_once(tmp_path):
     path = tmp_path / "nezka.db"
     conn = connect(path)
     repo = ProductRepository(conn)
-    assert len(repo.list()) == 89
+    assert len(repo.list()) == 90
     # Product 06 is not on the seeded estimate, so it can be deleted.
     repo.delete(next(p for p in repo.list() if p.ref == "06").id)
     conn.close()
 
     conn = connect(path)
-    assert len(ProductRepository(conn).list()) == 88
+    assert len(ProductRepository(conn).list()) == 89
     conn.close()
 
 
@@ -76,6 +77,46 @@ def test_supplier_products():
     assert "POR CONFIRMAR" in by_description["NEZKA WHITE DISTILLED VINEGAR"].notes
     upcs = [p.upc for p in load_catalog() + supplier if p.upc]
     assert len(upcs) == len(set(upcs)) + 1  # 0601968448202 is still shared by refs 09 and 10
+
+
+def test_sazon_mixto_jar():
+    (jar,) = load_added_products()
+    assert (jar.ref, jar.upc, jar.size, jar.pack, jar.price_per_box) == ("90", "798156095512", "2.72KG (96OZ)", "4", 0)
+    assert jar.image
+    # It is a different product from the 250 g shaker (ref 17), not a duplicate of it.
+    shaker = next(p for p in load_catalog() if p.ref == "17")
+    assert jar.description != shaker.description and jar.upc != shaker.upc
+    upcs = [p.upc for p in load_catalog() + load_supplier_products() if p.upc]
+    assert jar.upc not in upcs
+
+
+def test_existing_database_gets_the_jar_once(tmp_path):
+    """A database already updated with the supplier catalog (user_version 3) only gains the jar."""
+    path = tmp_path / "nezka.db"
+    conn = connect(path)
+    conn.execute("DELETE FROM products WHERE ref = '90'")
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    repo = ProductRepository(conn)
+    repo.add(Product(ref="90", description="PRODUCTO PROPIO", price_per_box=5))
+    conn.close()
+
+    conn = connect(path)
+    by_ref = {p.ref: p for p in ProductRepository(conn).list()}
+    assert by_ref["90"].description == "PRODUCTO PROPIO"
+    assert by_ref["91"].description == "NEZKA MIX SEASONING (SAZÓN MIXTO) JAR"
+    assert len(by_ref) == 91
+    conn.close()
+
+    # Already had it (here by UPC, with the user's own name): nothing is added.
+    conn = connect(path)
+    conn.execute("UPDATE products SET description = 'SAZON GRANDE' WHERE ref = '91'")
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+    conn.close()
+    conn = connect(path)
+    assert len(ProductRepository(conn).list()) == 91
+    conn.close()
 
 
 def _database_before_supplier_catalog(path):
@@ -121,14 +162,15 @@ def test_existing_database_gets_supplier_products_without_losing_user_changes(tm
     assert by_ref["57"].price_per_box == 20
     descriptions = [p.description.casefold() for p in products]
     assert len(descriptions) == len(set(descriptions))
-    assert len(products) == 55 + 2 + 33
-    # The supplier products whose refs were taken got the next free ones.
+    assert len(products) == 55 + 2 + 33 + 1
+    # The supplier products whose refs were taken got the next free ones, and so did the jar after them.
     assert {p.description for p in products if p.ref in ("90", "91")} == {"NEZKA COCONUT MILK", "LA LELA COCONUT MILK"}
+    assert by_ref["92"].upc == "798156095512"
     conn.close()
 
     # Opening again changes nothing.
     conn = connect(path)
-    assert len(ProductRepository(conn).list()) == 90
+    assert len(ProductRepository(conn).list()) == 91
     conn.close()
 
 
