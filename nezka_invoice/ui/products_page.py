@@ -1,9 +1,22 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPixmap
-from PySide6.QtWidgets import QCheckBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
+from datetime import date
+from pathlib import Path
 
+from PySide6.QtCore import QRectF, QStandardPaths, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QPainter, QPixmap
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHeaderView,
+    QMessageBox,
+    QPushButton,
+    QStyledItemDelegate,
+    QTableView,
+    QWidget,
+)
+
+from nezka_invoice import missing_data
 from nezka_invoice.models import Product
 from nezka_invoice.ui import theme
 from nezka_invoice.ui.product_dialog import ProductDialog
@@ -104,16 +117,64 @@ class ProductsPage(ListPage):
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         table.sortByColumn(1, Qt.AscendingOrder)
 
+    def header_buttons(self) -> list[QPushButton]:
+        self.export_button = QPushButton("Exportar faltantes")
+        self.export_button.setToolTip(
+            "Guardar en Excel los productos listados a los que les falta información, para pedírsela al proveedor"
+        )
+        self.export_button.clicked.connect(self.export_missing)
+        return [self.export_button]
+
     def toolbar_filters(self) -> list[QWidget]:
-        self.only_missing = QCheckBox("Solo con datos faltantes")
-        self.only_missing.setToolTip("Productos sin UPC, tamaño, pack, cajas por pallet, precio o foto")
-        self.only_missing.toggled.connect(self.refresh)
-        return [self.only_missing]
+        self.missing_filter = QComboBox()
+        self.missing_filter.setToolTip("Mostrar solo los productos a los que les falta información")
+        self.missing_filter.addItem("Todos los productos", None)
+        self.missing_filter.addItem("Con datos faltantes", missing_data.ANY)
+        for name, text in missing_data.MISSING_CHOICES:
+            self.missing_filter.addItem(text, name)
+        self.missing_filter.currentIndexChanged.connect(self.refresh)
+        return [self.missing_filter]
 
     def filter_records(self, records: list[Product]) -> list[Product]:
-        if self.only_missing.isChecked():
-            return [p for p in records if p.missing_info()]
-        return records
+        missing = self.missing_filter.currentData()
+        return [p for p in records if missing_data.matches(p, missing)]
+
+    def products_to_export(self) -> list[Product]:
+        """The listed products that lack something, in the table's order."""
+        listed = [self.proxy.index(row, 0).data(Qt.UserRole) for row in range(self.proxy.rowCount())]
+        return [p for p in listed if p.missing_info()]
+
+    def refresh(self, *args, **kwargs) -> None:
+        super().refresh(*args, **kwargs)
+        self.export_button.setEnabled(bool(self.products_to_export()))
+
+    def export_missing(self, *_args, path: str | None = None) -> Path | None:
+        products = self.products_to_export()
+        if not products:
+            return None
+        if path is None:
+            documents = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+            suggested = Path(documents) / f"Productos_datos_faltantes_{date.today():%Y-%m-%d}.xlsx"
+            path, _ = QFileDialog.getSaveFileName(self, "Exportar datos faltantes", str(suggested), "Excel (*.xlsx)")
+            if not path:
+                return None
+            open_after = True
+        else:
+            open_after = False
+        if not path.lower().endswith(".xlsx"):
+            path += ".xlsx"
+        title = "Productos con datos faltantes"
+        if self.missing_filter.currentData() not in (None, missing_data.ANY):
+            title += f" ({self.missing_filter.currentText().lower()})"
+        try:
+            saved = missing_data.export_xlsx(products, path, title)
+        except OSError as error:
+            QMessageBox.warning(self, "No se pudo guardar", f"No se pudo guardar el archivo:\n{error}")
+            return None
+        self.status_message.emit(f"Excel guardado con {len(products)} productos: {saved}")
+        if open_after:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(saved)))
+        return saved
 
     def stat_values(self, records: list[Product]) -> tuple:
         active = [p for p in records if p.active]
