@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from nezka_invoice.db import ProductRepository
-from nezka_invoice.models import Product
+from nezka_invoice.models import Product, normalize_upc
 from nezka_invoice.ui.theme import brand_stripe
 from nezka_invoice.ui.widgets import dialog_header, form_section
 
@@ -203,11 +203,32 @@ class ProductDialog(QDialog):
             id=self.product.id if self.product else None,
         )
 
+    def duplicate_upc_owner(self, product: Product) -> Product | None:
+        """The other product that already uses this UPC, if any.
+
+        A product whose UPC wasn't touched is let through even if it shares it with another one: some
+        catalog products already came that way, and that shouldn't stop editing their price or photo.
+        """
+        if self.product and normalize_upc(product.upc) == normalize_upc(self.product.upc):
+            return None
+        return self.repo.find_by_upc(product.upc, exclude_id=product.id)
+
     def save(self) -> None:
         product = self.form_product()
         errors = product.validate()
         if errors:
             QMessageBox.warning(self, "Revisa los datos", "\n".join(errors))
+            return
+        duplicate = self.duplicate_upc_owner(product)
+        if duplicate is not None:
+            QMessageBox.warning(
+                self,
+                "UPC duplicado",
+                f"El UPC «{product.upc.strip()}» ya lo tiene el producto {duplicate.label}.\n\n"
+                "Cada producto debe tener su propio UPC. Corrige el código o déjalo vacío para poder guardar.",
+            )
+            self.upc.setFocus()
+            self.upc.selectAll()
             return
         if self.repo.ref_exists(product.ref, exclude_id=product.id):
             answer = QMessageBox.question(
