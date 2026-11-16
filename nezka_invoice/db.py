@@ -169,6 +169,8 @@ class ClientRepository:
 
 
 SUPPLIER_CATALOG = "supplier_2026_11.json"
+# Products Rafa sent one by one after the supplier catalog (refs 90 onwards).
+ADDED_PRODUCTS = "added_2026_11.json"
 
 # UPCs corrected from the supplier's catalog (November 2026): ref -> (value in Productos.pdf, correct value).
 # Only codes printed in full in the supplier's catalog are here; doubtful ones are listed in the product notes.
@@ -203,6 +205,11 @@ def load_catalog(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
 def load_supplier_products(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
     """Products from the supplier's catalog that were missing from Productos.pdf (refs 56 onwards)."""
     return _load_products(catalog_dir, SUPPLIER_CATALOG)
+
+
+def load_added_products(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
+    """Products added after the supplier catalog: the 2.72 kg Sazón Mixto jar (ref 90)."""
+    return _load_products(catalog_dir, ADDED_PRODUCTS)
 
 
 class ProductRepository:
@@ -462,20 +469,32 @@ def _add_supplier_products(conn: sqlite3.Connection) -> None:
                 "UPDATE products SET upc = ?, updated_at = datetime('now', 'localtime') WHERE ref = ? AND upc = ?",
                 (new, ref, old),
             )
+    _add_missing_products(products, load_supplier_products())
+
+
+def _add_missing_products(products: ProductRepository, candidates: list[Product]) -> None:
+    """Add the bundled products the user doesn't have yet, matched by description or UPC.
+
+    The bundled refs are kept where they are free; the rest go after the highest ref.
+    """
     existing = products.list()
     descriptions = {p.description.casefold() for p in existing}
     upcs = {p.upc for p in existing if p.upc}
     new = [
-        p for p in load_supplier_products()
+        p for p in candidates
         if p.description.casefold() not in descriptions and not (p.upc and p.upc in upcs)
     ]
-    # Keep the catalog's refs where they are free; the rest go after the highest ref.
     taken = [p for p in new if products.ref_exists(p.ref)]
     for product in [p for p in new if p not in taken]:
         products.add(product)
     for product in taken:
         product.ref = products.next_ref()
         products.add(product)
+
+
+def _add_new_products(conn: sqlite3.Connection) -> None:
+    """Products sent after the supplier catalog, added without touching the user's own."""
+    _add_missing_products(ProductRepository(conn), load_added_products())
 
 
 # UPCs read later from the supplier's catalog for products added in step 3: description -> (UPC, note line
@@ -505,6 +524,7 @@ MIGRATIONS = [
     (SCHEMA + PRODUCT_SCHEMA, _seed_catalog),
     (ESTIMATE_SCHEMA, _seed_tree_logistics),
     ("", _add_supplier_products),
+    ("", _add_new_products),
     ("", _fill_supplier_upcs),
 ]
 

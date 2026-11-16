@@ -47,7 +47,7 @@ jobs:
           Start-Sleep -Seconds 25
           if ($p.HasExited) { throw "NezkaInvoice.exe exited with code $($p.ExitCode)" }
           taskkill /IM NezkaInvoice.exe /T /F | Out-Null
-          python -c "import sqlite3; n = sqlite3.connect('smoke.db').execute('SELECT COUNT(*) FROM products').fetchone()[0]; print(n, 'products'); assert n == 89"
+          python -c "import sqlite3; n = sqlite3.connect('smoke.db').execute('SELECT COUNT(*) FROM products').fetchone()[0]; print(n, 'products'); assert n == 90"
 
       - uses: actions/upload-artifact@v4
         with:
