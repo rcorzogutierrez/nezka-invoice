@@ -1,9 +1,11 @@
-import pytest
-
 import sqlite3
+
+import pytest
+from PySide6.QtCore import Qt
 
 from nezka_invoice.db import (
     MIGRATIONS,
+    SUPPLIER_UPC_UPDATES,
     UPC_FIXES,
     ProductRepository,
     ValidationError,
@@ -164,3 +166,67 @@ def test_search_ref_exists_and_next_ref(repo):
     assert not repo.ref_exists("48", exclude_id=repo.list("48")[0].id)
     assert not repo.ref_exists("")
     assert repo.next_ref() == "49"
+
+
+def test_cereal_upcs_reach_databases_that_got_the_supplier_products_without_them(tmp_path):
+    path = tmp_path / "nezka.db"
+    conn = _database_before_supplier_catalog(path)
+    _add_supplier_products_as_first_released(conn)
+    repo = ProductRepository(conn)
+    by_description = {p.description: p for p in repo.list()}
+    assert by_description["NEZKA CORN FLAKES CEREAL"].upc == ""
+    # The user typed a code for Fruty Rings themselves: it stays.
+    fruty = by_description["NEZKA FRUTY RINGS CEREAL"]
+    fruty.upc = "111"
+    repo.update(fruty)
+    conn.close()
+
+    conn = connect(path)
+    by_description = {p.description: p for p in ProductRepository(conn).list()}
+    corn = by_description["NEZKA CORN FLAKES CEREAL"]
+    assert corn.upc == SUPPLIER_UPC_UPDATES["NEZKA CORN FLAKES CEREAL"] == "647581350515"
+    assert "POR CONFIRMAR" not in corn.notes and "QTY PER CONTAINER: 1050" in corn.notes
+    assert by_description["NEZKA FRUTY RINGS CEREAL"].upc == "111"
+    conn.close()
+
+
+def _add_supplier_products_as_first_released(conn):
+    """Step 3 as it shipped in PR #19, when the cereals had no UPC yet."""
+    from nezka_invoice.db import _CEREAL_NOTE
+
+    MIGRATIONS[2][1](conn)
+    with conn:
+        for description, upc in SUPPLIER_UPC_UPDATES.items():
+            conn.execute(
+                "UPDATE products SET upc = '', notes = notes || ? WHERE description = ?",
+                ("\n" + _CEREAL_NOTE.format(upc), description),
+            )
+    conn.execute("PRAGMA user_version = 3")
+    conn.commit()
+
+
+def test_missing_info():
+    complete = Product(description="X", upc="1", size="1OZ", pack="12", qty_per_pallet="60", price_per_box=10, image=b"i")
+    assert complete.missing_info() == []
+    assert Product(description="X", size="1OZ", pack="12").missing_info() == ["UPC", "cajas/pallet", "precio", "foto"]
+    pending = Product(description="X", upc="1", size="1OZ", pack="12", qty_per_pallet="60", price_per_box=10,
+                      image=b"i", notes="UPC POR CONFIRMAR: ...")
+    assert pending.missing_info() == ["UPC por confirmar"]
+
+
+def test_products_page_filters_products_with_missing_info(app, tmp_path):
+    from nezka_invoice.ui.products_page import ProductsPage
+
+    conn = connect(tmp_path / "nezka.db")
+    repo = ProductRepository(conn)
+    page = ProductsPage(repo)
+    total = page.proxy.rowCount()
+    page.only_missing.setChecked(True)
+    listed = [page.proxy.index(row, 0).data(Qt.UserRole) for row in range(page.proxy.rowCount())]
+    assert 0 < len(listed) < total
+    assert all(p.missing_info() for p in listed)
+    assert "NEZKA WHITE DISTILLED VINEGAR" in {p.description for p in listed}
+    assert "NEZKA CORN FLAKES CEREAL" in {p.description for p in listed}  # still needs a price
+    page.only_missing.setChecked(False)
+    assert page.proxy.rowCount() == total
+    conn.close()

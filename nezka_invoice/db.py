@@ -478,12 +478,34 @@ def _add_supplier_products(conn: sqlite3.Connection) -> None:
         products.add(product)
 
 
+# UPCs read later from the supplier's catalog for products added in step 3: description -> (UPC, note line
+# that said it was pending). Only applied where the product still has no UPC.
+_CEREAL_NOTE = "UPC POR CONFIRMAR: PROBABLEMENTE {} (EL CATÁLOGO PONE LOS CÓDIGOS ENCIMA DE LAS CAJAS SIN NOMBRE)"
+SUPPLIER_UPC_UPDATES = {
+    "NEZKA CHOKO BALLS CEREAL": "647581350508",
+    "NEZKA CORN FLAKES CEREAL": "647581350515",
+    "NEZKA FROSTED FLAKES CEREAL": "647581350478",
+    "NEZKA FRUTY RINGS CEREAL": "647581350492",
+}
+
+
+def _fill_supplier_upcs(conn: sqlite3.Connection) -> None:
+    with conn:
+        for description, upc in SUPPLIER_UPC_UPDATES.items():
+            conn.execute(
+                "UPDATE products SET upc = ?, notes = REPLACE(notes, ?, ''), "
+                "updated_at = datetime('now', 'localtime') WHERE description = ? COLLATE NOCASE AND upc = ''",
+                (upc, "\n" + _CEREAL_NOTE.format(upc), description),
+            )
+
+
 # Each step runs once per database, tracked with PRAGMA user_version. Seeds only run on
 # databases created by the app (not in tests that pass seed=False).
 MIGRATIONS = [
     (SCHEMA + PRODUCT_SCHEMA, _seed_catalog),
     (ESTIMATE_SCHEMA, _seed_tree_logistics),
     ("", _add_supplier_products),
+    ("", _fill_supplier_upcs),
 ]
 
 

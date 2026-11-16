@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
-from PySide6.QtWidgets import QHeaderView, QStyledItemDelegate, QTableView
+from PySide6.QtWidgets import QCheckBox, QHeaderView, QStyledItemDelegate, QTableView, QWidget
 
 from nezka_invoice.models import Product
 from nezka_invoice.ui import theme
@@ -89,6 +89,7 @@ class ProductsPage(ListPage):
             Column("PACK", lambda p: p.pack),
             Column("CAJAS / PALLET", lambda p: p.qty_per_pallet),
             Column("PRECIO / CAJA", lambda p: money(p.price_per_box), sort_key=lambda p: p.price_per_box),
+            Column("FALTA", lambda p: ", ".join(p.missing_info()), sort_key=lambda p: len(p.missing_info())),
             Column("ESTADO", lambda p: "Activo" if p.active else "Inactivo"),
         ]
 
@@ -102,6 +103,17 @@ class ProductsPage(ListPage):
         )
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         table.sortByColumn(1, Qt.AscendingOrder)
+
+    def toolbar_filters(self) -> list[QWidget]:
+        self.only_missing = QCheckBox("Solo con datos faltantes")
+        self.only_missing.setToolTip("Productos sin UPC, tamaño, pack, cajas por pallet, precio o foto")
+        self.only_missing.toggled.connect(self.refresh)
+        return [self.only_missing]
+
+    def filter_records(self, records: list[Product]) -> list[Product]:
+        if self.only_missing.isChecked():
+            return [p for p in records if p.missing_info()]
+        return records
 
     def stat_values(self, records: list[Product]) -> tuple:
         active = [p for p in records if p.active]
