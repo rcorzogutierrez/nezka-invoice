@@ -113,11 +113,7 @@ def render_estimates(device: QPagedPaintDevice, renderers: list["ProformaRendere
 
 def _pdf_writer(target, renderers: list["ProformaRenderer"]) -> QPdfWriter:
     writer = QPdfWriter(target)
-    if len(renderers) == 1:
-        estimate = renderers[0].estimate
-        writer.setTitle(f"{estimate.number} – {estimate.client_name}".strip(" –"))
-    else:
-        writer.setTitle("Estimados")
+    writer.setTitle(renderers[0].document_title if len(renderers) == 1 else "Estimados")
     writer.setCreator(COMPANY_NAME)
     writer.setResolution(600)
     writer.setPageLayout(QPageLayout(QPageSize(QPageSize.Letter), QPageLayout.Portrait, QMarginsF(0, 0, 0, 0)))
@@ -151,6 +147,17 @@ class ProformaRenderer:
         self.painter: QPainter | None = None
         self.dpi = 72
         self.page_h = PAGE_H
+
+    columns = COLUMNS
+
+    @property
+    def document_title(self) -> str:
+        return f"{self.estimate.number} – {self.estimate.client_name}".strip(" –")
+
+    @property
+    def footer_label(self) -> str:
+        """Shown in the page footer after the company name."""
+        return self.estimate.client_name
 
     # Public API
     def render(self, device: QPagedPaintDevice) -> int:
@@ -269,17 +276,21 @@ class ProformaRenderer:
         self._hline(MARGIN, PAGE_W - MARGIN, footer)
         row = QRectF(MARGIN, footer + 4, CONTENT_W, 14)
         self._text(row, COMPANY_NAME.upper(), 6.5, BLUE, bold=True)
-        if self.estimate.client_name:
-            self._text(row.adjusted(108, 0, 0, 0), f"|  {self.estimate.client_name}", 6.5, MUTED)
+        if self.footer_label:
+            self._text(row.adjusted(108, 0, 0, 0), f"|  {self.footer_label}", 6.5, MUTED)
         self._text(row, f"Page {page}", 6.5, MUTED, flags=Qt.AlignRight | Qt.AlignVCenter)
 
-    def _letterhead(self) -> float:
+    def _company_heading(self) -> None:
+        """Logo, mascots and the company address, at the top of the first page."""
         self._image(LOGO, QRectF(MARGIN, 33, 158.4, 67))
         self._image(MASCOTS, QRectF(459, 33, 117, 68.4))
         center = QRectF(200, 36, 250, 13)
         self._text(center, COMPANY_NAME, 8.5, INK, bold=True, flags=Qt.AlignCenter)
         for i, text in enumerate(COMPANY_LINES):
             self._text(center.translated(0, 13 + i * 12.4), text, 7.5, INK, flags=Qt.AlignCenter)
+
+    def _letterhead(self) -> float:
+        self._company_heading()
 
         # Customer, reference and proforma number boxes.
         top = 117.0
@@ -321,7 +332,7 @@ class ProformaRenderer:
 
     def _table_header(self, y: float) -> float:
         self._fill(QRectF(MARGIN, y, CONTENT_W, HEADER_H), BLUE)
-        for title, x, width, align in COLUMNS:
+        for title, x, width, align in self.columns:
             pad = 4 if align == Qt.AlignRight else 0
             self._text(QRectF(x, y, width - pad, HEADER_H), title, 6.3, "#ffffff", bold=True,
                        flags=align | Qt.AlignVCenter)

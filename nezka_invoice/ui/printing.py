@@ -7,9 +7,10 @@ from PySide6.QtGui import QDesktopServices, QPageLayout, QPageSize
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QWidget
 
+from nezka_invoice.catalog import CatalogRenderer, catalog_file_name
 from nezka_invoice.db import ClientRepository, ProductRepository
-from nezka_invoice.models import Estimate
-from nezka_invoice.proforma import ProformaRenderer, default_file_name, pdf_bytes, render_estimates
+from nezka_invoice.models import Estimate, Product
+from nezka_invoice.proforma import ProformaRenderer, default_file_name, pdf_bytes, render_estimates, write_pdf
 from nezka_invoice.ui.pdf_preview import PdfPreviewDialog
 
 
@@ -37,13 +38,8 @@ class EstimatePrinting:
         return f"{len(estimates)} estimados"
 
     def _printer(self, estimates: list[Estimate]) -> QPrinter:
-        printer = QPrinter(QPrinter.HighResolution)
         name = Path(default_file_name(estimates[0])).stem if len(estimates) == 1 else "Estimados"
-        printer.setDocName(name)
-        printer.setFullPage(True)
-        printer.setPageSize(QPageSize(QPageSize.Letter))
-        printer.setPageOrientation(QPageLayout.Portrait)
-        return printer
+        return _letter_printer(name)
 
     def preview(self, estimates: list[Estimate]) -> None:
         """The proforma as it will look in the PDF, shown in the app without saving a file."""
@@ -120,3 +116,79 @@ class EstimatePrinting:
             target = paths[0] if len(paths) == 1 else paths[0].parent
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
         return where
+
+
+def _letter_printer(doc_name: str) -> QPrinter:
+    printer = QPrinter(QPrinter.HighResolution)
+    printer.setDocName(doc_name)
+    printer.setFullPage(True)
+    printer.setPageSize(QPageSize(QPageSize.Letter))
+    printer.setPageOrientation(QPageLayout.Portrait)
+    return printer
+
+
+def _saved_box(parent: QWidget, path: Path) -> None:
+    box = QMessageBox(QMessageBox.Information, "PDF guardado", f"Se guardó:\n{path}", parent=parent)
+    open_button = box.addButton("Abrir PDF", QMessageBox.AcceptRole)
+    box.addButton("Cerrar", QMessageBox.RejectRole)
+    box.exec()
+    if box.clickedButton() is open_button:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+
+class CatalogPrinting:
+    """Preview, print and PDF export of the product catalog (no customer)."""
+
+    def __init__(self, parent: QWidget):
+        self.parent = parent
+
+    def preview(self, products: list[Product], show_prices: bool) -> None:
+        if not products:
+            return
+        try:
+            pdf = pdf_bytes([CatalogRenderer(products, show_prices)])
+        except RuntimeError as error:
+            QMessageBox.warning(self.parent, "No se pudo generar la vista previa", str(error))
+            return
+        count = len(products)
+        dialog = PdfPreviewDialog(
+            f"Vista previa · catálogo ({count} producto{'' if count == 1 else 's'})",
+            pdf,
+            on_print=lambda: self.send_to_printer(products, show_prices),
+            on_save=lambda: self.save_pdf(products, show_prices),
+            parent=self.parent,
+        )
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.exec()
+
+    def send_to_printer(self, products: list[Product], show_prices: bool) -> None:
+        if not products:
+            return
+        printer = _letter_printer(Path(catalog_file_name()).stem)
+        dialog = QPrintDialog(printer, self.parent)
+        dialog.setWindowTitle("Imprimir catálogo")
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            render_estimates(printer, [CatalogRenderer(products, show_prices)])
+        except RuntimeError as error:
+            QMessageBox.warning(self.parent, "No se pudo imprimir", str(error))
+
+    def save_pdf(self, products: list[Product], show_prices: bool) -> str | None:
+        if not products:
+            return None
+        documents = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+        path, _ = QFileDialog.getSaveFileName(
+            self.parent, "Guardar catálogo en PDF", str(Path(documents) / catalog_file_name()), "PDF (*.pdf)"
+        )
+        if not path:
+            return None
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        try:
+            write_pdf(path, [CatalogRenderer(products, show_prices)])
+        except (OSError, RuntimeError) as error:
+            QMessageBox.warning(self.parent, "No se pudo guardar", f"No se pudo guardar el PDF:\n{error}")
+            return None
+        _saved_box(self.parent, Path(path))
+        return path

@@ -42,6 +42,17 @@ Hecha en Python con [PySide6](https://doc.qt.io/qtforpython-6/) (Qt) para la int
 
 ![Vista previa del PDF](docs/estimado-imprimir.png)
 
+### Catálogo
+
+- La sección **Catálogo** imprime o guarda en PDF la lista de productos sin ningún cliente: foto, referencia, descripción, UPC, tamaño, pack, cajas por pallet y precio por caja, con el mismo encabezado (logo, dirección) y la tabla azul de la proforma, la fecha y el número de productos.
+- Todos los productos activos vienen marcados; se quitan o se vuelven a poner haciendo clic en la fila (o en su casilla). **Marcar todos** / **Desmarcar todos** actúan sobre los que se ven, así que con la búsqueda se puede armar un catálogo de solo una línea de productos. Los productos nuevos entran marcados.
+- **Mostrar precios por caja** se puede desactivar para entregar un catálogo sin precios; **Incluir productos inactivos** los agrega.
+- **Vista previa**, **Imprimir** (`Ctrl+P`, abre primero la vista previa) y **Guardar PDF** (por defecto `Catalogo_Elpidio_Jr_<fecha>.pdf` en Documentos) funcionan igual que en los estimados.
+
+![Catálogo](docs/catalogo.png)
+
+![Vista previa del catálogo](docs/catalogo-vista-previa.png)
+
 Atajos (en cada pantalla): `Ctrl+N` nuevo cliente o producto, `Ctrl+F` buscar, `Supr` eliminar el seleccionado.
 
 ![Formulario de cliente](docs/cliente-form.png)
