@@ -168,9 +168,19 @@ class ClientRepository:
         return row is not None
 
 
-def load_catalog(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
-    """The company product list (Productos.pdf), shipped with the app as the starting catalog."""
-    items = json.loads((catalog_dir / "catalog.json").read_text(encoding="utf-8"))
+SUPPLIER_CATALOG = "supplier_2026_11.json"
+
+# UPCs corrected from the supplier's catalog (November 2026): ref -> (value in Productos.pdf, correct value).
+# Only codes printed in full in the supplier's catalog are here; doubtful ones are listed in the product notes.
+UPC_FIXES = {
+    "07": ("752830900622", "796520715493"),  # Sweetened condensed creamer had the evaporated creamer's code.
+    "11": ("", "699838661592"),  # Café espresso had no code.
+    "17": ("76746141077", "767461410778"),  # Mix seasoning was missing its check digit.
+}
+
+
+def _load_products(catalog_dir: Path, file_name: str) -> list[Product]:
+    items = json.loads((catalog_dir / file_name).read_text(encoding="utf-8"))
     products = []
     for item in items:
         image_name = item.pop("image")
@@ -178,6 +188,21 @@ def load_catalog(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
         image = image_path.read_bytes() if image_name and image_path.exists() else None
         products.append(Product(**item, image=image))
     return products
+
+
+def load_catalog(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
+    """The company product list (Productos.pdf), shipped with the app as the starting catalog."""
+    products = _load_products(catalog_dir, "catalog.json")
+    for product in products:
+        old, new = UPC_FIXES.get(product.ref, (None, None))
+        if new is not None and product.upc == old:
+            product.upc = new
+    return products
+
+
+def load_supplier_products(catalog_dir: Path = CATALOG_DIR) -> list[Product]:
+    """Products from the supplier's catalog that were missing from Productos.pdf (refs 56 onwards)."""
+    return _load_products(catalog_dir, SUPPLIER_CATALOG)
 
 
 class ProductRepository:
@@ -424,11 +449,41 @@ def _seed_tree_logistics(conn: sqlite3.Connection) -> None:
         )
 
 
+def _add_supplier_products(conn: sqlite3.Connection) -> None:
+    """Bring a database seeded before November 2026 up to date with the supplier's catalog.
+
+    UPCs are only corrected where the product still has the original value, and a supplier product is
+    skipped when the user already has one with the same description or UPC, so their edits survive.
+    """
+    products = ProductRepository(conn)
+    with conn:
+        for ref, (old, new) in UPC_FIXES.items():
+            conn.execute(
+                "UPDATE products SET upc = ?, updated_at = datetime('now', 'localtime') WHERE ref = ? AND upc = ?",
+                (new, ref, old),
+            )
+    existing = products.list()
+    descriptions = {p.description.casefold() for p in existing}
+    upcs = {p.upc for p in existing if p.upc}
+    new = [
+        p for p in load_supplier_products()
+        if p.description.casefold() not in descriptions and not (p.upc and p.upc in upcs)
+    ]
+    # Keep the catalog's refs where they are free; the rest go after the highest ref.
+    taken = [p for p in new if products.ref_exists(p.ref)]
+    for product in [p for p in new if p not in taken]:
+        products.add(product)
+    for product in taken:
+        product.ref = products.next_ref()
+        products.add(product)
+
+
 # Each step runs once per database, tracked with PRAGMA user_version. Seeds only run on
 # databases created by the app (not in tests that pass seed=False).
 MIGRATIONS = [
     (SCHEMA + PRODUCT_SCHEMA, _seed_catalog),
     (ESTIMATE_SCHEMA, _seed_tree_logistics),
+    ("", _add_supplier_products),
 ]
 
 
