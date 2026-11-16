@@ -13,6 +13,7 @@ from nezka_invoice.db import (
     load_added_products,
     load_catalog,
     load_supplier_products,
+    load_supplier_products_b,
 )
 from nezka_invoice import missing_data
 from nezka_invoice.models import Product
@@ -45,13 +46,13 @@ def test_new_database_is_seeded_once(tmp_path):
     path = tmp_path / "nezka.db"
     conn = connect(path)
     repo = ProductRepository(conn)
-    assert len(repo.list()) == 90
+    assert len(repo.list()) == 103
     # Product 06 is not on the seeded estimate, so it can be deleted.
     repo.delete(next(p for p in repo.list() if p.ref == "06").id)
     conn.close()
 
     conn = connect(path)
-    assert len(ProductRepository(conn).list()) == 89
+    assert len(ProductRepository(conn).list()) == 102
     conn.close()
 
 
@@ -79,6 +80,20 @@ def test_supplier_products():
     assert len(upcs) == len(set(upcs)) + 1  # 0601968448202 is still shared by refs 09 and 10
 
 
+def test_supplier_products_second_batch():
+    batch = load_supplier_products_b()
+    assert [p.ref for p in batch] == [str(n) for n in range(91, 104)]
+    assert all(p.image for p in batch)
+    by_description = {p.description: p for p in batch}
+    rosquitas = [by_description[f"NEZKA ROSQUITAS {flavor}"].upc for flavor in ("COCONUT", "CHOCOLATE", "MILK")]
+    assert rosquitas == ["798156095550", "798156095567", "798156095574"]
+    assert by_description["NEZKA CORN STARCH"].upc == ""  # the catalog repeats Bon Ton's code
+    everything = load_catalog() + load_supplier_products() + load_added_products() + batch
+    upcs = [p.upc for p in everything if p.upc]
+    assert len(upcs) == len(set(upcs)) + 1  # 0601968448202 is still shared by refs 09 and 10
+    assert len({p.description for p in everything}) == len(everything)
+
+
 def test_sazon_mixto_jar():
     (jar,) = load_added_products()
     assert (jar.ref, jar.upc, jar.size, jar.pack, jar.price_per_box) == ("90", "798156095512", "2.72KG (96OZ)", "4", 0)
@@ -94,7 +109,7 @@ def test_existing_database_gets_the_jar_once(tmp_path):
     """A database already updated with the supplier catalog (user_version 3) only gains the jar."""
     path = tmp_path / "nezka.db"
     conn = connect(path)
-    conn.execute("DELETE FROM products WHERE ref = '90'")
+    conn.execute("DELETE FROM products WHERE CAST(ref AS INTEGER) >= 90")
     conn.execute("PRAGMA user_version = 3")
     conn.commit()
     repo = ProductRepository(conn)
@@ -105,7 +120,9 @@ def test_existing_database_gets_the_jar_once(tmp_path):
     by_ref = {p.ref: p for p in ProductRepository(conn).list()}
     assert by_ref["90"].description == "PRODUCTO PROPIO"
     assert by_ref["91"].description == "NEZKA MIX SEASONING (SAZÓN MIXTO) JAR"
-    assert len(by_ref) == 91
+    assert len(by_ref) == 89 + 2 + 13
+    # The second supplier batch came after it; Harina Lacteada's ref 91 was taken, so it went last.
+    assert by_ref["104"].description == "NEZKA HARINA LACTEADA"
     conn.close()
 
     # Already had it (here by UPC, with the user's own name): nothing is added.
@@ -115,7 +132,7 @@ def test_existing_database_gets_the_jar_once(tmp_path):
     conn.commit()
     conn.close()
     conn = connect(path)
-    assert len(ProductRepository(conn).list()) == 91
+    assert len(ProductRepository(conn).list()) == 104
     conn.close()
 
 
@@ -162,7 +179,7 @@ def test_existing_database_gets_supplier_products_without_losing_user_changes(tm
     assert by_ref["57"].price_per_box == 20
     descriptions = [p.description.casefold() for p in products]
     assert len(descriptions) == len(set(descriptions))
-    assert len(products) == 55 + 2 + 33 + 1
+    assert len(products) == 55 + 2 + 33 + 1 + 13
     # The supplier products whose refs were taken got the next free ones, and so did the jar after them.
     assert {p.description for p in products if p.ref in ("90", "91")} == {"NEZKA COCONUT MILK", "LA LELA COCONUT MILK"}
     assert by_ref["92"].upc == "798156095512"
@@ -170,7 +187,7 @@ def test_existing_database_gets_supplier_products_without_losing_user_changes(tm
 
     # Opening again changes nothing.
     conn = connect(path)
-    assert len(ProductRepository(conn).list()) == 91
+    assert len(ProductRepository(conn).list()) == 104
     conn.close()
 
 

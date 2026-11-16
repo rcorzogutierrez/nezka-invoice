@@ -1,0 +1,145 @@
+[
+ {
+  "ref": "91",
+  "description": "NEZKA HARINA LACTEADA",
+  "notes": "HARINA LACTEADA (MILK CEREAL FLOUR)\nQTY PER CONTAINER: 2000\nBOX: 16 X 12.5 X 8 IN",
+  "upc": "798156095529",
+  "size": "21.16OZ (600GR)",
+  "pack": "16",
+  "qty_per_pallet": "80",
+  "price_per_box": 0.0,
+  "image": "91.png"
+ },
+ {
+  "ref": "92",
+  "description": "NEZKA COCONUT WATER 330ML",
+  "notes": "AGUA DE COCO SIN PULPA, LATA DE 330 ML\nQTY PER CONTAINER: 3000\nBOX: 15 X 11 X 5 IN",
+  "upc": "8935374803938",
+  "size": "11.15 FL OZ (330ML)",
+  "pack": "24",
+  "qty_per_pallet": "80",
+  "price_per_box": 0.0,
+  "image": "92.png"
+ },
+ {
+  "ref": "93",
+  "description": "NEZKA COCONUT WATER WITH PULP 330ML",
+  "notes": "AGUA DE COCO CON PULPA, LATA DE 330 ML\nQTY PER CONTAINER: 3000\nBOX: 15 X 11 X 5 IN",
+  "upc": "8935374803945",
+  "size": "11.15 FL OZ (330ML)",
+  "pack": "24",
+  "qty_per_pallet": "80",
+  "price_per_box": 0.0,
+  "image": "93.png"
+ },
+ {
+  "ref": "94",
+  "description": "NEZKA ROSQUITAS COCONUT",
+  "notes": "GALLETAS DULCES SABOR COCO\nQTY PER CONTAINER: 1900\nBOX: 10 X 10.5 X 8.5 IN",
+  "upc": "798156095550",
+  "size": "250GR",
+  "pack": "20",
+  "qty_per_pallet": "56",
+  "price_per_box": 0.0,
+  "image": "94.png"
+ },
+ {
+  "ref": "95",
+  "description": "NEZKA ROSQUITAS CHOCOLATE",
+  "notes": "GALLETAS DULCES SABOR CHOCOLATE\nQTY PER CONTAINER: 1900\nBOX: 10 X 10.5 X 8.5 IN",
+  "upc": "798156095567",
+  "size": "250GR",
+  "pack": "20",
+  "qty_per_pallet": "56",
+  "price_per_box": 0.0,
+  "image": "95.png"
+ },
+ {
+  "ref": "96",
+  "description": "NEZKA ROSQUITAS MILK",
+  "notes": "GALLETAS DULCES SABOR LECHE\nQTY PER CONTAINER: 1900\nBOX: 10 X 10.5 X 8.5 IN",
+  "upc": "798156095574",
+  "size": "250GR",
+  "pack": "20",
+  "qty_per_pallet": "56",
+  "price_per_box": 0.0,
+  "image": "96.png"
+ },
+ {
+  "ref": "97",
+  "description": "NEZKA MAGDALENAS",
+  "notes": "MAGDALENAS (SPANISH-STYLE MUFFINS)\nQTY PER CONTAINER: 1600\nCAJAS POR PALLET Y MEDIDAS DE CAJA: EL CATÁLOGO LAS DEJA EN BLANCO",
+  "upc": "8437029320727",
+  "size": "200GR",
+  "pack": "20",
+  "qty_per_pallet": "",
+  "price_per_box": 0.0,
+  "image": "97.png"
+ },
+ {
+  "ref": "98",
+  "description": "MESA MARGARINA",
+  "notes": "MARGARINA MESA\nQTY PER CONTAINER: 4200\nBOX: 14.5 X 8 X 7.5 IN",
+  "upc": "7891999013323",
+  "size": "250GR",
+  "pack": "24",
+  "qty_per_pallet": "150",
+  "price_per_box": 0.0,
+  "image": "98.png"
+ },
+ {
+  "ref": "99",
+  "description": "NEZKA IODIZED SALT",
+  "notes": "SAL YODADA\nQTY PER CONTAINER: 2592\nBOX: 12 X 9 X 4 IN",
+  "upc": "798156095536",
+  "size": "26OZ (737GR)",
+  "pack": "12",
+  "qty_per_pallet": "144",
+  "price_per_box": 0.0,
+  "image": "99.png"
+ },
+ {
+  "ref": "100",
+  "description": "NEZKA GUAVA PASTE",
+  "notes": "PASTA DE GUAYABA\nQTY PER CONTAINER: 4070\nBOX: 11.5 X 10.5 X 6.5 IN",
+  "upc": "699838661585",
+  "size": "300GR",
+  "pack": "36",
+  "qty_per_pallet": "150",
+  "price_per_box": 0.0,
+  "image": "100.png"
+ },
+ {
+  "ref": "101",
+  "description": "NEZKA CORN STARCH",
+  "notes": "FÉCULA DE MAÍZ\nQTY PER CONTAINER: 1800\nBOX: 12 X 11 X 7 IN\nUPC POR CONFIRMAR: EL CATÁLOGO LE PONE 890612260615, EL MISMO DEL BON TON 12/50PC (REF 24)",
+  "upc": "",
+  "size": "14.1OZ (400GR)",
+  "pack": "12",
+  "qty_per_pallet": "120",
+  "price_per_box": 0.0,
+  "image": "101.png"
+ },
+ {
+  "ref": "102",
+  "description": "NEZKA PUFFED WHEAT",
+  "notes": "TRIGO INFLADO\nQTY PER CONTAINER: 1800\nBOX: 19 X 11 X 10 IN",
+  "upc": "798156095659",
+  "size": "6OZ (170GR)",
+  "pack": "12",
+  "qty_per_pallet": "82",
+  "price_per_box": 0.0,
+  "image": "102.png"
+ },
+ {
+  "ref": "103",
+  "description": "NEZKA PARBOILED RICE",
+  "notes": "ARROZ PARBOILED 5/20 LB\nEL CATÁLOGO NO TRAE UPC, CAJAS POR PALLET, QTY PER CONTAINER NI MEDIDAS",
+  "upc": "",
+  "size": "20LB",
+  "pack": "5",
+  "qty_per_pallet": "",
+  "price_per_box": 0.0,
+  "image": "103.png"
+ }
+]
