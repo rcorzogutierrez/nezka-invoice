@@ -325,3 +325,95 @@ def test_products_page_filters_by_one_missing_item_and_exports_to_excel(app, tmp
     assert 0 < len(rows) < page.proxy.rowCount()
     assert all(r[7] for r in rows)
     conn.close()
+
+
+def test_normalize_upc():
+    from nezka_invoice.models import normalize_upc
+
+    assert normalize_upc(" 6 12789-56709 6 ") == "612789567096"
+    assert normalize_upc("") == ""
+    assert normalize_upc(None) == ""
+
+
+def test_find_by_upc_ignores_spaces_hyphens_and_empty_upcs(repo):
+    first = repo.add(Product(ref="01", description="NEZKA CHICOTICOS JAMON", upc="612789567096"))
+    repo.add(Product(ref="02", description="SIN UPC"))
+    repo.add(Product(ref="03", description="OTRO SIN UPC", upc="  "))
+
+    assert repo.find_by_upc("6 12789-567096").id == first.id
+    assert repo.find_by_upc("612789567096", exclude_id=first.id) is None
+    assert repo.find_by_upc("") is None
+    assert repo.find_by_upc(" - ") is None
+    assert repo.find_by_upc("000000000000") is None
+
+
+def test_repository_still_accepts_repeated_upcs_for_migrations(repo):
+    """The bundled catalog has a few repeated UPCs; only the product form refuses new duplicates."""
+    repo.add(Product(description="A", upc="752830900622"))
+    repo.add(Product(description="B", upc="752830900622"))
+    assert len(repo.list("752830900622")) == 2
+
+
+@pytest.fixture
+def warnings(monkeypatch):
+    from nezka_invoice.ui import product_dialog
+
+    shown = []
+    monkeypatch.setattr(product_dialog.QMessageBox, "warning", lambda parent, title, text: shown.append((title, text)))
+    return shown
+
+
+def test_product_form_refuses_a_upc_another_product_has(app, repo, warnings):
+    from nezka_invoice.ui.product_dialog import ProductDialog
+
+    repo.add(Product(ref="01", description="NEZKA CHICOTICOS JAMON", upc="612789567096"))
+
+    dialog = ProductDialog(repo)
+    dialog.ref.setText("99")
+    dialog.description.setText("PRODUCTO NUEVO")
+    dialog.upc.setText("612789-567 096")
+    dialog.save()
+
+    assert dialog.saved_record is None
+    assert len(repo.list()) == 1
+    title, text = warnings[0]
+    assert title == "UPC duplicado"
+    assert "01. NEZKA CHICOTICOS JAMON" in text
+
+    dialog.upc.setText("")
+    dialog.save()
+    assert dialog.saved_record is not None
+    assert len(warnings) == 1
+
+
+def test_editing_a_product_into_another_products_upc_is_refused(app, repo, warnings):
+    from nezka_invoice.ui.product_dialog import ProductDialog
+
+    repo.add(Product(ref="01", description="UNO", upc="111111111111"))
+    other = repo.add(Product(ref="02", description="DOS", upc="222222222222"))
+
+    dialog = ProductDialog(repo, other)
+    dialog.upc.setText("111111111111")
+    dialog.save()
+    assert warnings and "01. UNO" in warnings[0][1]
+    assert repo.get(other.id).upc == "222222222222"
+
+    # Saving the product with its own UPC is fine.
+    dialog = ProductDialog(repo, other)
+    dialog.price.setValue(12.5)
+    dialog.save()
+    assert repo.get(other.id).price_per_box == 12.5
+    assert len(warnings) == 1
+
+
+def test_products_that_already_share_a_upc_can_still_be_edited(app, repo, warnings):
+    from nezka_invoice.ui.product_dialog import ProductDialog
+
+    repo.add(Product(ref="10", description="A", upc="752830900622"))
+    second = repo.add(Product(ref="11", description="B", upc="752830900622"))
+
+    dialog = ProductDialog(repo, second)
+    dialog.price.setValue(20)
+    dialog.save()
+    assert warnings == []
+    assert repo.get(second.id).price_per_box == 20

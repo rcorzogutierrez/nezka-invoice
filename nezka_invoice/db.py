@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from nezka_invoice.models import Client, Estimate, EstimateLine, Product
+from nezka_invoice.models import Client, Estimate, EstimateLine, Product, normalize_upc
 
 CATALOG_DIR = Path(__file__).resolve().parent / "assets" / "products"
 
@@ -294,6 +294,22 @@ class ProductRepository:
             "SELECT 1 FROM products WHERE ref = ? COLLATE NOCASE AND id IS NOT ?", (ref, exclude_id)
         ).fetchone()
         return row is not None
+
+    def find_by_upc(self, upc: str, exclude_id: int | None = None) -> Product | None:
+        """Another product that already uses this UPC, ignoring spaces and hyphens. Empty UPCs never match.
+
+        Only the product form checks this: the catalog migrations run before the user sees anything and the
+        bundled data already has a few repeated UPCs, so add() and update() don't refuse duplicates.
+        """
+        wanted = normalize_upc(upc)
+        if not wanted:
+            return None
+        row = self.conn.execute(
+            "SELECT * FROM products WHERE REPLACE(REPLACE(REPLACE(REPLACE(upc, ' ', ''), '-', ''), char(9), ''), "
+            "char(160), '') = ? AND id IS NOT ? ORDER BY ref, description COLLATE NOCASE LIMIT 1",
+            (wanted, exclude_id),
+        ).fetchone()
+        return self._from_row(row) if row else None
 
     def next_ref(self) -> str:
         """Suggest the next free numeric reference, keeping the proforma's two-digit style."""

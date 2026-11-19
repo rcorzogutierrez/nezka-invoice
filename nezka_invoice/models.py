@@ -72,6 +72,11 @@ class Client:
         return text
 
 
+def normalize_upc(upc: str) -> str:
+    """UPC as compared for duplicates: without spaces or hyphens ("0 12345-67890 5" == "012345678905")."""
+    return "".join(ch for ch in (upc or "") if not ch.isspace() and ch != "-")
+
+
 @dataclass
 class Product:
     """An item from the catalog that can be quoted and invoiced."""
